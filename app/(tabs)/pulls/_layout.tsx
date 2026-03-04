@@ -7,6 +7,17 @@ export default function PullsLayout() {
         name="index"
         options={{ title: 'Pull Requests' }}
       />
+      <Stack.Screen
+        name="[owner]/[repo]/[number]"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="diff"
+        options={{
+          title: 'Diff',
+          headerBackTitle: 'Back',
+        }}
+      />
     </Stack>
   );
 }

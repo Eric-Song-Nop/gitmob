@@ -47,6 +47,43 @@ export interface PRFile {
   previous_filename?: string;
 }
 
+export interface StatusCheck {
+  context: string;
+  state: 'EXPECTED' | 'ERROR' | 'FAILURE' | 'PENDING' | 'SUCCESS';
+  targetUrl: string | null;
+  description: string | null;
+}
+
+export interface StatusCheckRollup {
+  state: 'EXPECTED' | 'ERROR' | 'FAILURE' | 'PENDING' | 'SUCCESS';
+  contexts: StatusCheck[];
+}
+
+export interface ReviewComment {
+  id: string;
+  body: string;
+  path: string;
+  line: number | null;
+  author: GitHubUser;
+  createdAt: string;
+}
+
+export interface ReviewThread {
+  id: string;
+  isResolved: boolean;
+  path: string;
+  line: number | null;
+  comments: ReviewComment[];
+}
+
+export interface PullRequestDetail extends PullRequest {
+  bodyHTML: string;
+  statusCheckRollup: StatusCheckRollup | null;
+  reviewThreads: ReviewThread[];
+  totalCommentsCount: number;
+  commits: number;
+}
+
 export interface PendingComment {
   path: string;
   line: number;

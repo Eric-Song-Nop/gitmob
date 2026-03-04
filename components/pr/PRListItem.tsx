@@ -5,7 +5,7 @@ import { Text } from '@/components/ui/text';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { formatRelativeTime } from '@/lib/date';
 import type { PullRequest } from '@/api/types';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 interface PRListItemProps {
   pr: PullRequest;
@@ -14,6 +14,7 @@ interface PRListItemProps {
 
 function PRListItem({ pr, onPress }: PRListItemProps) {
   return (
+    <Pressable onPress={onPress} disabled={!onPress}>
     <Card className="mx-4 mb-2">
       <CardContent className="gap-2 p-4">
         {/* Header: repo name + time */}
@@ -71,6 +72,7 @@ function PRListItem({ pr, onPress }: PRListItemProps) {
         )}
       </CardContent>
     </Card>
+    </Pressable>
   );
 }
 

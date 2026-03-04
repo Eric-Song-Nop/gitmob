@@ -6,6 +6,7 @@ import { usePullRequests, type PRFilter } from '@/api/queries/usePullRequests';
 import type { PullRequest } from '@/api/types';
 import { useState, useCallback, useMemo } from 'react';
 import { FlatList, RefreshControl, View } from 'react-native';
+import { useRouter } from 'expo-router';
 
 const FILTERS: { key: PRFilter; label: string }[] = [
   { key: 'review-requested', label: 'Review' },
@@ -14,6 +15,7 @@ const FILTERS: { key: PRFilter; label: string }[] = [
 ];
 
 export default function PullsScreen() {
+  const router = useRouter();
   const [filter, setFilter] = useState<PRFilter>('review-requested');
   const {
     data,
@@ -38,9 +40,19 @@ export default function PullsScreen() {
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
+  const handlePRPress = useCallback(
+    (pr: PullRequest) => {
+      const { owner, name } = pr.repository;
+      router.push(`/(tabs)/pulls/${owner.login}/${name}/${pr.number}` as any);
+    },
+    [router]
+  );
+
   const renderItem = useCallback(
-    ({ item }: { item: PullRequest }) => <PRListItem pr={item} />,
-    []
+    ({ item }: { item: PullRequest }) => (
+      <PRListItem pr={item} onPress={() => handlePRPress(item)} />
+    ),
+    [handlePRPress]
   );
 
   const keyExtractor = useCallback(
