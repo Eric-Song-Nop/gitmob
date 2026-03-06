@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, View } from 'react-native';
 import { Redirect, router, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { ArrowLeftIcon } from 'lucide-react-native';
 
-import { usePullRequests } from '@/api/queries/usePullRequests';
+import { usePRInbox } from '@/api/queries/usePRInbox';
 import { usePullRequest } from '@/api/queries/usePullRequest';
 import { usePRDiff } from '@/api/queries/usePRDiff';
 import { usePRComments } from '@/api/queries/usePRComments';
@@ -33,11 +33,13 @@ import { validateCoverage } from '@/services/segmentation/validateCoverage';
 import { deriveReviewEvent, type SegmentDecision } from '@/services/review/deriveReviewEvent';
 import { useAuthStore } from '@/stores/authStore';
 import { useLLMConfigStore } from '@/stores/llmConfigStore';
+import { usePRInboxStore } from '@/stores/prInboxStore';
 
 const LOGIN_ROUTE = '/login' as Href;
 const SETTINGS_ROUTE = '/settings' as Href;
 
 type ReviewMode = 'pr-deck' | 'segment-deck' | 'submit-overlay';
+type InboxMode = 'front' | 'peek';
 
 interface CommentOverlayState {
   open: boolean;
@@ -45,10 +47,6 @@ interface CommentOverlayState {
   segmentId?: string;
   path?: string;
   line?: number;
-}
-
-function flattenPulls(data: ReturnType<typeof usePullRequests>['data']): PullRequest[] {
-  return data?.pages.flatMap((page) => page.nodes) ?? [];
 }
 
 function buildReviewBody(segmentNotes: Record<string, string>) {
@@ -59,7 +57,12 @@ function buildReviewBody(segmentNotes: Record<string, string>) {
   return notes.length ? `Segment notes\n${notes.join('\n')}` : '';
 }
 
-function EmptyDeck({ title, body, actionLabel, onAction }: {
+function EmptyDeck({
+  title,
+  body,
+  actionLabel,
+  onAction,
+}: {
   title: string;
   body: string;
   actionLabel?: string;
@@ -68,7 +71,7 @@ function EmptyDeck({ title, body, actionLabel, onAction }: {
   return (
     <View className="flex-1 justify-center px-5 pb-28 pt-24">
       <View className="rounded-[32px] border border-border bg-card px-6 py-8 shadow-sm shadow-black/10">
-        <Text className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Review Queue</Text>
+        <Text className="text-xs uppercase tracking-[0.24em] text-muted-foreground">PR Inbox</Text>
         <Text variant="h3" className="mt-4 border-b-0 pb-0 text-left text-[30px] leading-[34px]">
           {title}
         </Text>
@@ -87,8 +90,11 @@ export default function ReviewScreen() {
   const insets = useSafeAreaInsets();
   const { isAuthenticated, isLoading, user } = useAuthStore();
   const llmConfig = useLLMConfigStore((state) => state.config);
+  const { clearSnoozed, snoozePR } = usePRInboxStore();
+  const inbox = usePRInbox();
 
   const [mode, setMode] = useState<ReviewMode>('pr-deck');
+  const [inboxMode, setInboxMode] = useState<InboxMode>('front');
   const [currentPRIndex, setCurrentPRIndex] = useState(0);
   const [selectedPR, setSelectedPR] = useState<PullRequest | null>(null);
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
@@ -101,23 +107,23 @@ export default function ReviewScreen() {
   const [segmentNotes, setSegmentNotes] = useState<Record<string, string>>({});
   const [inlineComments, setInlineComments] = useState<GitHubDraftComment[]>([]);
 
-  const reviewRequestedQuery = usePullRequests('review-requested');
-  const assignedQuery = usePullRequests('assigned');
-
-  const reviewRequested = flattenPulls(reviewRequestedQuery.data);
-  const assigned = flattenPulls(assignedQuery.data);
-  const queue = reviewRequested.length > 0 ? reviewRequested : assigned;
-
-  const activePR = queue[currentPRIndex] ?? null;
-  const effectivePR = selectedPR ?? activePR;
+  const activeInboxItem = inbox.items[currentPRIndex] ?? null;
+  const effectivePR = selectedPR ?? activeInboxItem?.pullRequest ?? null;
   const owner = effectivePR?.repository.owner.login ?? '';
   const repo = effectivePR?.repository.name ?? '';
   const pullNumber = effectivePR?.number ?? 0;
 
-  const detailQuery = usePullRequest(owner, repo, pullNumber);
-  const diffQuery = usePRDiff(owner, repo, pullNumber);
-  const commentsQuery = usePRComments(owner, repo, pullNumber);
+  const shouldLoadDetail = !!effectivePR && (mode !== 'pr-deck' || inboxMode === 'peek');
+  const detailQuery = usePullRequest(owner, repo, pullNumber, shouldLoadDetail);
+  const diffQuery = usePRDiff(owner, repo, pullNumber, mode !== 'pr-deck');
+  const commentsQuery = usePRComments(owner, repo, pullNumber, mode !== 'pr-deck');
   const createReview = useCreateReview();
+
+  useEffect(() => {
+    if (currentPRIndex >= inbox.items.length) {
+      setCurrentPRIndex(Math.max(inbox.items.length - 1, 0));
+    }
+  }, [currentPRIndex, inbox.items.length]);
 
   const parsedFiles = useMemo(() => {
     if (!diffQuery.data) return [];
@@ -135,6 +141,7 @@ export default function ReviewScreen() {
       llmConfig.model,
     ],
     enabled:
+      mode !== 'pr-deck' &&
       !!effectivePR &&
       !!detailQuery.data &&
       parsedFiles.length > 0 &&
@@ -165,10 +172,7 @@ export default function ReviewScreen() {
 
   const currentThreads = commentsQuery.data ?? [];
   const reviewBody = useMemo(() => buildReviewBody(segmentNotes), [segmentNotes]);
-  const reviewEvent = useMemo(
-    () => deriveReviewEvent(Object.values(decisions)),
-    [decisions]
-  );
+  const reviewEvent = useMemo(() => deriveReviewEvent(Object.values(decisions)), [decisions]);
   const stats = useMemo(
     () => ({
       accepted: Object.values(decisions).filter((entry) => entry.status === 'accepted').length,
@@ -191,15 +195,20 @@ export default function ReviewScreen() {
     return <Redirect href={LOGIN_ROUTE} />;
   }
 
-  const closeReview = () => {
-    setMode('pr-deck');
-    setSelectedPR(null);
+  const resetReviewSession = () => {
     setCurrentSegmentIndex(0);
     setFlippedSegmentIds([]);
     setDecisions({});
     setSegmentNotes({});
     setInlineComments([]);
     setCommentOverlay({ open: false, title: '' });
+  };
+
+  const closeReview = () => {
+    setMode('pr-deck');
+    setInboxMode('front');
+    setSelectedPR(null);
+    resetReviewSession();
   };
 
   const advanceSegment = async () => {
@@ -227,20 +236,26 @@ export default function ReviewScreen() {
     await advanceSegment();
   };
 
-  const openSelectedPR = () => {
-    if (!activePR) return;
-    setSelectedPR(activePR);
-    setCurrentSegmentIndex(0);
-    setFlippedSegmentIds([]);
-    setDecisions({});
-    setSegmentNotes({});
-    setInlineComments([]);
+  const openSelectedPR = async () => {
+    if (!activeInboxItem) return;
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setSelectedPR(activeInboxItem.pullRequest);
+    setInboxMode('front');
+    resetReviewSession();
     setMode('segment-deck');
   };
 
-  const skipPR = async () => {
+  const saveForLater = async () => {
+    if (!activeInboxItem) return;
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    snoozePR(activeInboxItem.prKey);
+    setInboxMode('front');
+  };
+
+  const togglePeek = async () => {
+    if (!activeInboxItem) return;
     await Haptics.selectionAsync();
-    setCurrentPRIndex((index) => index + 1);
+    setInboxMode((state) => (state === 'front' ? 'peek' : 'front'));
   };
 
   const toggleFlip = async () => {
@@ -278,25 +293,23 @@ export default function ReviewScreen() {
   const submitComment = async (body: string) => {
     const target = commentOverlay;
     if (!target.segmentId) return;
+    const segmentId = target.segmentId;
 
     if (target.path != null && target.line != null) {
       const path = target.path;
       const line = target.line;
-      setInlineComments((state) => [
-        ...state,
-        { path, line, side: 'RIGHT', body },
-      ]);
+      setInlineComments((state) => [...state, { path, line, side: 'RIGHT', body }]);
     } else {
       setSegmentNotes((state) => ({
         ...state,
-        [target.segmentId!]: body,
+        [segmentId]: body,
       }));
     }
 
     setDecisions((state) => ({
       ...state,
-      [target.segmentId!]: {
-        segmentId: target.segmentId!,
+      [segmentId]: {
+        segmentId,
         status: 'commented',
         blocking: false,
       },
@@ -328,6 +341,8 @@ export default function ReviewScreen() {
   };
 
   const topOffset = insets.top + 12;
+  const visibleCount = inbox.items.length;
+  const progressIndex = Math.min(currentPRIndex + 1, Math.max(visibleCount, 1));
 
   return (
     <View className="flex-1 bg-background">
@@ -349,7 +364,7 @@ export default function ReviewScreen() {
           <ProgressPill
             label={
               mode === 'pr-deck'
-                ? `Queue ${Math.min(currentPRIndex + 1, Math.max(queue.length, 1))}/${Math.max(queue.length, 1)}`
+                ? `Inbox ${progressIndex}/${Math.max(visibleCount, 1)}`
                 : `Segment ${Math.min(currentSegmentIndex + 1, Math.max(segments.length, 1))}/${Math.max(segments.length, 1)}`
             }
           />
@@ -360,21 +375,39 @@ export default function ReviewScreen() {
       </View>
 
       {mode === 'pr-deck' ? (
-        reviewRequestedQuery.isPending && assignedQuery.isPending ? (
+        inbox.isPending ? (
           <LoadingState mode="spinner" />
-        ) : activePR ? (
+        ) : inbox.error ? (
+          <EmptyDeck
+            title="The inbox could not be loaded"
+            body={inbox.error.message}
+            actionLabel="Retry"
+            onAction={inbox.refetch}
+          />
+        ) : activeInboxItem ? (
           <PRDeck
-            current={activePR}
-            next={queue[currentPRIndex + 1]}
+            current={activeInboxItem}
+            next={inbox.items[currentPRIndex + 1]}
+            inboxMode={inboxMode}
+            detail={detailQuery.data}
+            detailPending={detailQuery.isPending}
             onOpenReview={openSelectedPR}
-            onSkip={skipPR}
+            onSnooze={saveForLater}
+            onTogglePeek={togglePeek}
+          />
+        ) : inbox.hiddenCount > 0 ? (
+          <EmptyDeck
+            title="Everything is saved for later"
+            body="Your inbox is empty because all visible pull requests were snoozed locally. Reset them to bring the deck back."
+            actionLabel="Reset Later"
+            onAction={clearSnoozed}
           />
         ) : (
           <EmptyDeck
-            title="No review requests right now"
-            body="Nothing is waiting in review-requested or assigned. Pull to refresh later, or switch accounts in settings."
-            actionLabel="Open Settings"
-            onAction={() => router.push(SETTINGS_ROUTE)}
+            title="No pull requests in your inbox"
+            body="Nothing is open across requested, assigned, or authored PRs right now."
+            actionLabel="Refresh"
+            onAction={inbox.refetch}
           />
         )
       ) : (
@@ -385,7 +418,7 @@ export default function ReviewScreen() {
             <EmptyDeck
               title="This pull request could not be loaded"
               body={(detailQuery.error ?? diffQuery.error)?.message ?? 'Unknown error'}
-              actionLabel="Back to Queue"
+              actionLabel="Back to Inbox"
               onAction={closeReview}
             />
           ) : !llmConfig.apiKey.trim() ? (
@@ -401,7 +434,7 @@ export default function ReviewScreen() {
             <EmptyDeck
               title="Segmentation did not complete"
               body={segmentationQuery.error.message}
-              actionLabel="Back to Queue"
+              actionLabel="Back to Inbox"
               onAction={closeReview}
             />
           ) : currentSegment && currentFile ? (
@@ -427,7 +460,7 @@ export default function ReviewScreen() {
             <EmptyDeck
               title="No segments were returned"
               body="The diff parsed correctly, but no mobile review cards were produced."
-              actionLabel="Back to Queue"
+              actionLabel="Back to Inbox"
               onAction={closeReview}
             />
           )}

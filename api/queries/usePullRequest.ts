@@ -290,7 +290,7 @@ function mapCheckConclusion(conclusion?: string | null): StatusCheck['state'] {
   }
 }
 
-export function usePullRequest(owner: string, repo: string, number: number) {
+export function usePullRequest(owner: string, repo: string, number: number, enabled = true) {
   return useQuery<PullRequestDetail>({
     queryKey: ['pr', owner, repo, number],
     queryFn: async () => {
@@ -303,6 +303,6 @@ export function usePullRequest(owner: string, repo: string, number: number) {
       return transformResponse(result);
     },
     staleTime: 1000 * 60 * 3,
-    enabled: !!owner && !!repo && !!number,
+    enabled: enabled && !!owner && !!repo && !!number,
   });
 }

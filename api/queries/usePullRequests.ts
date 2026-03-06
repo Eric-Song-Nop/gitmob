@@ -13,6 +13,7 @@ const PR_LIST_QUERY = `
         ... on PullRequest {
           number
           title
+          body
           state
           createdAt
           updatedAt
@@ -21,6 +22,10 @@ const PR_LIST_QUERY = `
           changedFiles
           isDraft
           mergeable
+          baseRefName
+          headRefName
+          baseRefOid
+          headRefOid
           url
           author {
             login
@@ -45,7 +50,12 @@ const PR_LIST_QUERY = `
           reviews(last: 5) {
             nodes {
               state
-              author { login }
+              body
+              author {
+                login
+                avatarUrl
+              }
+              submittedAt
             }
           }
         }

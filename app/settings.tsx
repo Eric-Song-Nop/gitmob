@@ -2,7 +2,10 @@ import { ScrollView, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeftIcon, MoonStarIcon, SunMediumIcon } from 'lucide-react-native';
+import { useMutation } from '@tanstack/react-query';
 
+import { checkLLMHealth } from '@/api/llm/checkHealth';
+import { getProviderMeta } from '@/api/llm/providers';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
@@ -24,8 +27,18 @@ export default function SettingsScreen() {
   const theme = usePreferencesStore((state) => state.theme);
   const setTheme = usePreferencesStore((state) => state.setTheme);
   const config = useLLMConfigStore((state) => state.config);
+  const healthCheck = useLLMConfigStore((state) => state.healthCheck);
   const setConfig = useLLMConfigStore((state) => state.setConfig);
+  const setHealthCheck = useLLMConfigStore((state) => state.setHealthCheck);
+  const clearHealthCheck = useLLMConfigStore((state) => state.clearHealthCheck);
   const loginRoute = '/login' as Href;
+  const providerMeta = getProviderMeta(config);
+  const healthCheckMutation = useMutation({
+    mutationFn: () => checkLLMHealth(config),
+    onSuccess: (result) => {
+      setHealthCheck(result);
+    },
+  });
 
   return (
     <View className="flex-1 bg-background">
@@ -122,11 +135,39 @@ export default function SettingsScreen() {
               <Button
                 variant={config.provider === 'moonshot' ? 'default' : 'outline'}
                 className="flex-1 rounded-2xl"
-                onPress={() => setConfig({ provider: 'moonshot', model: DEFAULT_MODELS.moonshot })}
+                onPress={() =>
+                  setConfig({
+                    provider: 'moonshot',
+                    model: DEFAULT_MODELS.moonshot,
+                    moonshotRegion: config.moonshotRegion ?? 'china',
+                  })
+                }
               >
                 <Text>Moonshot</Text>
               </Button>
             </View>
+
+            {config.provider === 'moonshot' ? (
+              <>
+                <Text className="mt-5 text-sm text-foreground">Region</Text>
+                <View className="mt-3 flex-row gap-3">
+                  <Button
+                    variant={config.moonshotRegion !== 'global' ? 'default' : 'outline'}
+                    className="flex-1 rounded-2xl"
+                    onPress={() => setConfig({ moonshotRegion: 'china' })}
+                  >
+                    <Text>China</Text>
+                  </Button>
+                  <Button
+                    variant={config.moonshotRegion === 'global' ? 'default' : 'outline'}
+                    className="flex-1 rounded-2xl"
+                    onPress={() => setConfig({ moonshotRegion: 'global' })}
+                  >
+                    <Text>Global</Text>
+                  </Button>
+                </View>
+              </>
+            ) : null}
 
             <Text className="mt-5 text-sm text-foreground">Model</Text>
             <Input
@@ -148,6 +189,64 @@ export default function SettingsScreen() {
               autoCorrect={false}
               secureTextEntry
             />
+
+            <View className="mt-5 flex-row gap-3">
+              <Button
+                className="flex-1 rounded-2xl"
+                disabled={!config.apiKey.trim() || healthCheckMutation.isPending}
+                onPress={() => {
+                  clearHealthCheck();
+                  healthCheckMutation.mutate();
+                }}
+              >
+                <Text>
+                  {healthCheckMutation.isPending ? 'Checking...' : 'Health Check'}
+                </Text>
+              </Button>
+            </View>
+
+            {healthCheck ? (
+              <View className="mt-4 rounded-[22px] border border-border bg-backgroundAlt px-4 py-4">
+                <Text className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                  {healthCheck.ok ? 'Healthy' : 'Unhealthy'}
+                  {healthCheck.stale ? ' · Stale' : ''}
+                </Text>
+                <Text className="mt-2 text-sm text-foreground">
+                  {healthCheck.provider} / {healthCheck.model}
+                </Text>
+                {healthCheck.regionLabel ? (
+                  <Text className="mt-1 text-sm text-muted-foreground">{healthCheck.regionLabel}</Text>
+                ) : null}
+                {healthCheck.baseURL ? (
+                  <Text className="mt-1 text-sm text-muted-foreground">{healthCheck.baseURL}</Text>
+                ) : null}
+                <Text className="mt-1 text-sm text-muted-foreground">
+                  {healthCheck.latencyMs} ms · {new Date(healthCheck.checkedAt).toLocaleString()}
+                </Text>
+                {healthCheck.error ? (
+                  <Text className="mt-3 text-sm leading-6 text-destructive">
+                    {healthCheck.error}
+                  </Text>
+                ) : (
+                  <Text className="mt-3 text-sm leading-6 text-muted-foreground">
+                    Structured output check passed.
+                  </Text>
+                )}
+              </View>
+            ) : (
+              <View className="mt-4 rounded-[22px] border border-border bg-backgroundAlt px-4 py-4">
+                <Text className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Current route</Text>
+                <Text className="mt-2 text-sm text-foreground">
+                  {providerMeta.provider} / {providerMeta.model}
+                </Text>
+                {providerMeta.regionLabel ? (
+                  <Text className="mt-1 text-sm text-muted-foreground">{providerMeta.regionLabel}</Text>
+                ) : null}
+                {providerMeta.baseURL ? (
+                  <Text className="mt-1 text-sm text-muted-foreground">{providerMeta.baseURL}</Text>
+                ) : null}
+              </View>
+            )}
           </View>
         </View>
       </ScrollView>

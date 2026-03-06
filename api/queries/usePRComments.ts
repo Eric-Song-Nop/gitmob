@@ -54,7 +54,7 @@ interface RawResponse {
   };
 }
 
-export function usePRComments(owner: string, repo: string, number: number) {
+export function usePRComments(owner: string, repo: string, number: number, enabled = true) {
   return useQuery<ReviewThread[]>({
     queryKey: ['pr-comments', owner, repo, number],
     queryFn: async () => {
@@ -85,6 +85,6 @@ export function usePRComments(owner: string, repo: string, number: number) {
       );
     },
     staleTime: 1000 * 60 * 2,
-    enabled: !!owner && !!repo && !!number,
+    enabled: enabled && !!owner && !!repo && !!number,
   });
 }

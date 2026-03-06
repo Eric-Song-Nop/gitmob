@@ -1,6 +1,6 @@
 import { generateObject } from 'ai';
 import { z } from 'zod';
-import { getLanguageModel } from './providers';
+import { getGenerationOptions, getLanguageModel } from './providers';
 import type { SegmentationInput, SegmentationResult } from './types';
 import type { LLMConfig } from '@/stores/llmConfigStore';
 
@@ -83,6 +83,7 @@ export async function segmentPullRequest(
   config: LLMConfig
 ): Promise<SegmentationResult> {
   const model = getLanguageModel(config);
+  const generationOptions = getGenerationOptions(config);
   const chunks = chunkInput(input);
   const segments = [] as SegmentationResult['segments'];
 
@@ -91,6 +92,7 @@ export async function segmentPullRequest(
       model,
       schema: segmentSchema,
       prompt: buildPrompt(chunks[index]),
+      ...generationOptions,
     });
 
     segments.push(

@@ -5,7 +5,7 @@ import { getOctokit } from '../client';
  * Fetch the raw unified diff for a PR.
  * Uses the `application/vnd.github.diff` media type.
  */
-export function usePRDiff(owner: string, repo: string, number: number) {
+export function usePRDiff(owner: string, repo: string, number: number, enabled = true) {
   return useQuery<string>({
     queryKey: ['pr-diff', owner, repo, number],
     queryFn: async () => {
@@ -20,6 +20,6 @@ export function usePRDiff(owner: string, repo: string, number: number) {
       return data as unknown as string;
     },
     staleTime: 1000 * 60 * 5,
-    enabled: !!owner && !!repo && !!number,
+    enabled: enabled && !!owner && !!repo && !!number,
   });
 }

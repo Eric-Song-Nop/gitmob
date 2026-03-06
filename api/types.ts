@@ -31,6 +31,16 @@ export interface PullRequest {
   }>;
 }
 
+export type PRSource = 'review-requested' | 'assigned' | 'authored';
+
+export interface InboxPRCardModel {
+  prKey: string;
+  pullRequest: PullRequest;
+  sources: PRSource[];
+  primarySource: PRSource;
+  snoozed: boolean;
+}
+
 export interface GitHubUser {
   login: string;
   avatarUrl: string;
