@@ -1,249 +1,358 @@
 # 系统架构
 
-## 整体数据流
+## 总体架构
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        React Components                         │
-│                    (expo-router 页面 + 组件)                     │
-├──────────────────────────────┬──────────────────────────────────┤
-│     TanStack Query           │         Zustand                  │
-│     (Server State)           │         (Client State)           │
-│                              │                                  │
-│  usePullRequests             │  authStore                       │
-│  usePullRequest              │    - token: string               │
-│  usePRFiles                  │    - user: GitHubUser            │
-│  usePRDiff                   │                                  │
-│  usePRComments               │  codeViewStore                   │
-│  useFileContent              │    - foldedLines: Set<number>    │
-│                              │    - fontSize: number            │
-│  Cache + Background Refetch  │    - diffMode: 'unified'|'split'│
-│  + ETag + Optimistic Update  │                                  │
-│                              │  reviewStore                     │
-│                              │    - pendingComments: Comment[]  │
-│                              │    - draftBody: string           │
-│                              │                                  │
-│                              │  commandStore                    │
-│                              │    - isOpen: boolean             │
-│                              │    - recentCommands: Command[]   │
-├──────────────────────────────┴──────────────────────────────────┤
-│                         API Layer                                │
-│               Octokit 统一 SDK (REST + GraphQL)                  │
-├─────────────────────────────────────────────────────────────────┤
-│                        GitHub API                                │
-│                   (REST v3 + GraphQL v4)                         │
-└─────────────────────────────────────────────────────────────────┘
+GitMob 当前采用四层结构：
+
+```text
+UI Layer
+  -> Review Session Layer
+  -> Domain Services Layer
+  -> Data / Provider Layer
 ```
 
-## 状态管理策略
+## UI Layer 的新约束
 
-### Server State（TanStack Query）
+UI 层现在不只是“显示页面”，还要承担新的空间策略：
 
-管理所有来自 GitHub API 的数据。核心优势：
+- 默认全屏内容
+- 最小化 chrome
+- 用浮层替代 header/footer
+- 用动效表达状态切换和审查结果
 
-- **自动缓存**：相同 queryKey 不重复请求
-- **后台刷新**：`staleTime` 过期后自动在后台重新获取
-- **ETag 条件请求**：减少不必要的数据传输和 API rate limit 消耗
-- **乐观更新**：提交评论后立即在 UI 反映，无需等待服务器响应
-- **分页**：`useInfiniteQuery` 处理 PR 列表分页加载
+### Chrome-Light Shell
 
-### Client State（Zustand）
+新的 App Shell 不再以固定 header/footer 为核心。
 
-管理纯客户端 UI 状态，不与服务器同步：
-
-| Store | 状态 | 持久化 |
-|-------|------|--------|
-| `authStore` | token, user, isAuthenticated | expo-secure-store |
-| `codeViewStore` | foldedLines, fontSize, diffMode | AsyncStorage |
-| `reviewStore` | pendingComments, draftBody | 内存（会话级） |
-| `commandStore` | isOpen, recentCommands | AsyncStorage |
-
-### 状态分离原则
-
-```
-是否来自服务器？
-├── 是 → TanStack Query（自动缓存 + 刷新）
-└── 否 → Zustand（轻量 + 无 Provider）
-     ├── 需要跨会话持久化？
-     │   ├── 是 → Zustand + persist middleware
-     │   └── 否 → 纯内存 Zustand store
-     └── 涉及敏感数据？
-         ├── 是 → expo-secure-store
-         └── 否 → AsyncStorage
+```text
+Safe Area Overlay
+  -> floating back pill / avatar orb / progress chip
+Main Canvas
+  -> feed card / review deck / code peek
+Thumb Zone
+  -> action dock / primary CTA / sheet handle
+Transient Layers
+  -> comment sheet / summary sheet / repo switcher
 ```
 
-## 导航架构
+### Shell 规则
 
-### 路由结构（expo-router）
+- 不使用常驻大标题 header
+- 不使用常驻底部 tab bar 承担主导航
+- 非核心页面允许出现轻量工具栏，但不能复制网页式布局
+- Review 流中优先使用 floating controls 和 sheets
 
-```
-/                                     # index.tsx → 重定向
-/login                                # 登录页
-/(tabs)/                              # Tab 导航容器
-  ├── pulls/                          # PR 列表（Tab 1）
-  │   └── [owner]/[repo]/[number]/    # PR 详情（嵌套路由）
-  │       ├── /                       # PR 概要
-  │       ├── files                   # 文件列表（Miller Columns）
-  │       └── diff?path=xxx           # Diff 视图
-  ├── notifications                   # 通知（Tab 2）
-  └── profile                         # 设置（Tab 3）
-/command-center                       # 命令中心（Modal 路由）
-```
+## 四层职责
 
-### 导航流图
+### UI Layer
 
-```
-App 启动
-    │
-    ├── 未登录 ──> /login ──> Device Flow ──> /(tabs)/pulls
-    │
-    └── 已登录 ──> /(tabs)/pulls
-                      │
-                      └── 选择 PR ──> /pulls/[owner]/[repo]/[number]
-                                        │
-                                        ├── Overview Tab（默认）
-                                        │
-                                        └── Files Tab
-                                              │
-                                              └── Miller Columns
-                                                    │
-                                                    └── 选择文件 ──> /diff?path=xxx
-                                                                      │
-                                                                      ├── 左滑 ──> Symbol Outline
-                                                                      │
-                                                                      └── 长按行 ──> 添加评论
-```
+负责：
 
-### 深度链接
+- Expo Router 页面
+- feed 卡片
+- review deck
+- code peek sheet
+- comment composer
+- outcome sheet
+- 动效和手势反馈
 
-```
-gitmob://pulls                   # PR 列表
-gitmob://pulls/{owner}/{repo}/{number}  # PR 详情
-```
+### Review Session Layer
 
-> Device Flow 不需要 redirect URI，因此无需 `login/callback` 深度链接。
+负责：
 
-## 认证流程
+- 当前 segment 索引
+- 段级判断
+- 评论草稿
+- summary body
+- sheet 打开关闭状态
+- action dock 状态
 
-### GitHub Device Flow（零后端）
+### Domain Services Layer
 
-GitMob 使用 GitHub Device Flow 进行认证，**无需任何后端服务**。这是 GitHub 官方推荐给 CLI 和移动端应用的认证方式（`gh auth login` 也使用此流程）。
+负责：
 
-```
-┌──────────┐    ┌──────────────────┐    ┌──────────────┐
-│  GitMob  │    │  GitHub           │    │  System      │
-│  App     │    │  OAuth Server     │    │  Browser     │
-└────┬─────┘    └────────┬──────────┘    └──────┬───────┘
-     │                    │                      │
-     │ POST /login/device/code                   │
-     │ { client_id, scope }                      │
-     │ ──────────────────>│                      │
-     │                    │                      │
-     │ { device_code,     │                      │
-     │   user_code,       │                      │
-     │   verification_uri,│                      │
-     │   interval }       │                      │
-     │ <──────────────────│                      │
-     │                    │                      │
-     │ 显示 user_code     │                      │
-     │ 打开 verification_uri                     │
-     │ ─────────────────────────────────────────>│
-     │                    │                      │
-     │                    │  用户输入 user_code   │
-     │                    │  并授权               │
-     │                    │ <────────────────────│
-     │                    │                      │
-     │ 轮询 POST /login/oauth/access_token      │
-     │ { client_id, device_code, grant_type }    │
-     │ ──────────────────>│                      │
-     │                    │                      │
-     │ { access_token }   │                      │
-     │ <──────────────────│                      │
-     │                    │                      │
-     │ expo-secure-store.setItemAsync('token', access_token)
-     │                    │                      │
+- unified diff 解析
+- hunk 到 segment 的映射
+- coverage 校验
+- GitHub review event 推导
+- GitHub review comments 构造
+
+### Data / Provider Layer
+
+负责：
+
+- GitHub API
+- Vercel AI SDK provider
+- SecureStore
+- 本地缓存
+
+## Vercel AI SDK 边界
+
+在当前架构里，Vercel AI SDK 只属于 provider 适配层。
+
+它负责：
+
+- 选择 provider
+- 创建 model 实例
+- 调用模型
+- 返回结构化输出
+
+它不负责：
+
+- 解析 diff
+- 生成评论锚点
+- 校验 segment coverage
+- 推导 GitHub review event
+- 管理 review draft
+- 管理 UI 状态与导航模式
+
+## 视觉与导航架构
+
+### Feed 模式
+
+目标：把 PR 列表做成更像“内容池”的体验，而不是传统列表页。
+
+推荐结构：
+
+```text
+PRFeedScreen
+  -> AmbientCanvas
+  -> TopUtilityChips
+  -> SpotlightPRCard
+  -> QueuePreviewRail
+  -> FloatingProfileOrb
 ```
 
-### 安全要点
+### Review 模式
 
-1. **零后端**：Device Flow 不需要 `client_secret`，无需代理服务器
-2. **Token 存储**：使用 `expo-secure-store`（iOS Keychain / Android Keystore）
-3. **OAuth Scope**：`repo`（仓库读写） + `user`（用户信息）
-4. **轮询间隔**：遵守 GitHub 返回的 `interval`（通常 5 秒），避免触发 `slow_down` 错误
+目标：让 segment 成为屏幕中心对象。
 
-### Device Flow 用户体验
+推荐结构：
 
-```
-┌─────────────────────────────────────┐
-│          Login to GitHub            │
-│                                     │
-│  Enter this code on github.com:     │
-│                                     │
-│      ┌─────────────────────┐        │
-│      │    ABCD-1234        │        │
-│      └─────────────────────┘        │
-│                                     │
-│  [Copy Code & Open GitHub]          │
-│                                     │
-│  Waiting for authorization...  ⏳   │
-│                                     │
-└─────────────────────────────────────┘
+```text
+ReviewDeckScreen
+  -> AmbientCanvas
+  -> ReviewTopChips
+  -> SegmentDeck
+  -> ActionDock
+  -> SheetHandle
+  -> CommentComposerSheet
+  -> OutcomeSheet
 ```
 
-用户点击按钮后，系统浏览器打开 `github.com/login/device`，粘贴代码并授权。App 在后台轮询直到获得 token。
+### Code Peek 模式
 
-## tree-sitter 集成架构
+目标：不破坏 card-first flow，但允许深看代码。
 
-详见 [04-tree-sitter-module.md](./04-tree-sitter-module.md)
+推荐结构：
 
-```
-React Component
-    │ useSyntaxHighlight(source, languageId)
-    ↓
-useTreeSitter Hook
-    │ TreeSitterModule.highlight(...)
-    ↓
-Expo Bridge (requireNativeModule)
-    │
-    ├── iOS: Swift Module → Obj-C++ Bridge → C++ Core
-    │
-    └── Android: Kotlin Module → JNI → C++ Core
-                                         │
-                                    ┌────┴────┐
-                                    │ Shared  │
-                                    │ C++     │
-                                    │ Core    │
-                                    └────┬────┘
-                                         │
-                                    tree-sitter C API
-                                         │
-                                    Language Grammars
+```text
+CodePeekSheet
+  -> SegmentMetaStrip
+  -> DiffHunkList
+  -> InlineCommentEntry
 ```
 
-## Diff 高亮架构
+## 核心数据流
 
-**关键决策**：Diff 视图的语法高亮基于**完整文件**解析，而非 diff 片段。
-
-```
-PR Diff 页面加载
-    │
-    ├── 1. 获取 unified diff（REST Accept:diff）
-    │       → 解析为 DiffFile[]
-    │
-    ├── 2. 获取旧版完整文件（/contents/{path}?ref={base_sha}）
-    │       → tree-sitter 解析 → 旧版高亮结果
-    │
-    ├── 3. 获取新版完整文件（/contents/{path}?ref={head_sha}）
-    │       → tree-sitter 解析 → 新版高亮结果
-    │
-    └── 4. 渲染 DiffView
-            - 删除行：从旧版高亮结果查找对应行的 token
-            - 新增行：从新版高亮结果查找对应行的 token
-            - 未变行：从新版高亮结果查找
-            - 折叠范围：从新版 AST 计算
-            - 符号大纲：从新版 AST 提取
+```text
+GitHub PR
+  -> fetch unified diff
+  -> parseDiff(diff)
+  -> DiffFile[] / DiffHunk[]
+  -> buildSegmentationInput(hunks)
+  -> LLM segmentation
+  -> validateCoverage(segments, hunks)
+  -> build ReviewSession
+  -> render ReviewDeck
+  -> deriveReviewEvent(draft)
+  -> submit GitHub review
 ```
 
-**优势**：完整文件的 AST 上下文保证高亮质量，不会因 diff 片段缺少上下文而出错。
+## 为什么 parser 必须在 LLM 之前
 
-**缓存优化**：文件内容以 SHA 作为 TanStack Query key，同一 SHA 永不过期（`staleTime: Infinity`），因为内容不可变。
+LLM 不是权威 diff 解释器。
+
+在 GitMob 中：
+
+- parser 负责真实文件、真实 hunk、真实行号
+- LLM 只负责将这些 hunk 组织成更易理解的 segment
+
+这条边界不能反过来，否则会出现：
+
+- 评论行号不可靠
+- segment 无法证明完整覆盖 PR
+- GitHub review comment 构造不稳定
+
+## 分层边界
+
+### 1. Diff 解析层
+
+输入：
+
+- GitHub 返回的 unified diff 字符串
+
+输出：
+
+- `DiffFile[]`
+- 每个文件下的 `DiffHunk[]`
+- 每行的 old/new line number
+
+要求：
+
+- 解析结果可重复
+- 不依赖 LLM
+- 作为后续映射的唯一真相源
+
+### 2. Segmentation 层
+
+输入：
+
+- 结构化 hunk 列表
+- PR 元数据
+- 用户 LLM 配置
+
+输出：
+
+- `Segment[]`
+- 每个 segment 引用哪些 file/hunk
+- 每个 segment 的标题、摘要、风险说明
+
+要求：
+
+- 每个 hunk 必须且只能被分配一次
+- 输出可以解释
+- 不允许丢 hunk
+
+实现约束：
+
+- `api/llm/*` 只做模型调用
+- `services/segmentation/*` 负责输入构建、结果合并和 coverage 校验
+- 页面层不能直接拼 prompt 和 schema
+
+### 3. Review Session 层
+
+输入：
+
+- `Segment[]`
+- 用户在 UI 上的段级判断和评论
+
+输出：
+
+- review draft
+- 待提交 comments
+- summary body
+- 最终 event
+- 当前 screen / sheet 组合状态
+
+### 4. Submission 层
+
+输入：
+
+- review draft
+- GitHub PR metadata
+
+输出：
+
+- `pulls.createReview()` payload
+- review comments payload
+
+## Review Shell 状态模型
+
+```ts
+interface ReviewChromeState {
+  topChipsVisible: boolean;
+  actionDockVisible: boolean;
+  codePeekOpen: boolean;
+  commentSheetOpen: boolean;
+  outcomeSheetOpen: boolean;
+}
+```
+
+规则：
+
+- `codePeekOpen` 时保留 action dock 的轻量版本
+- `commentSheetOpen` 时隐藏非必要 top chips
+- `outcomeSheetOpen` 时锁定 deck 手势
+
+## 手势策略
+
+### 可以保留为核心的手势
+
+- 左右轻扫切换/判断 segment
+- 点按展开代码
+- 点按或长按行进入评论
+- 上拉打开 summary 或 code peek
+
+### 不应同时争抢的手势
+
+- back 面滚动与上滑评论
+- deck 横滑与系统返回手势
+- code line 点击与整卡点击
+
+结论：
+
+- Review 流不能依赖 header/footer 来安置所有操作
+- 但也不能用过多冲突手势替代它们
+- 最终方案是：**浮动控件 + 明确手势分区 + sheet 分层**
+
+## 缓存架构
+
+### GitHub Query Cache
+
+由 TanStack Query 管理：
+
+- PR 列表
+- PR 详情
+- PR 文件列表
+- PR 评论
+- PR diff
+
+### Segment Cache
+
+建议 key 包含：
+
+- `owner`
+- `repo`
+- `pullNumber`
+- `diffHash`
+- `provider`
+- `model`
+- `promptVersion`
+
+### Review Draft Cache
+
+按 `prKey` 存储：
+
+```text
+review-draft:{owner}:{repo}:{pull}
+```
+
+## 大 PR 处理
+
+### 目标
+
+大 PR 不允许漏内容，也不允许简单截断后继续审查。
+
+### 推荐流程
+
+```text
+parseDiff()
+  -> flatten hunks
+  -> chunk hunks for LLM input
+  -> LLM returns partial segment groups
+  -> merge groups
+  -> validateCoverage()
+  -> if coverage != 100%, fail session initialization
+```
+
+## 当前不纳入主路径的内容
+
+以下能力不属于当前主路径：
+
+- provider fallback
+- LLM gateway
+- 离线提交队列
+- tree-sitter native module
+- Web 专门适配架构
+- 传统 header/footer 驱动的主界面

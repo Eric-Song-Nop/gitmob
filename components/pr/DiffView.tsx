@@ -9,6 +9,7 @@ import type { ReviewThread } from '@/api/types';
 interface DiffViewProps {
   file: DiffFile;
   threads: ReviewThread[];
+  onLinePress?: (path: string, line: number) => void;
 }
 
 type ListItem =
@@ -16,7 +17,7 @@ type ListItem =
   | { type: 'line'; key: string; line: DiffFile['hunks'][0]['lines'][0] }
   | { type: 'comment'; key: string; thread: ReviewThread };
 
-function DiffViewComponent({ file, threads }: DiffViewProps) {
+function DiffViewComponent({ file, threads, onLinePress }: DiffViewProps) {
   // Index threads by new line number for this file
   const threadsByLine = useMemo(() => {
     const map = new Map<number, ReviewThread[]>();
@@ -81,16 +82,20 @@ function DiffViewComponent({ file, threads }: DiffViewProps) {
           case 'hunk-header':
             return <DiffHunkHeader header={item.header} />;
           case 'line':
-            return <DiffLine line={item.line} />;
+            return (
+              <DiffLine
+                line={item.line}
+                onPress={
+                  item.line.newLineNumber != null
+                    ? () => onLinePress?.(file.newPath || file.oldPath, item.line.newLineNumber!)
+                    : undefined
+                }
+              />
+            );
           case 'comment':
             return <CommentThread thread={item.thread} />;
         }
       }}
-      getItemLayout={(_data, index) => ({
-        length: 22,
-        offset: 22 * index,
-        index,
-      })}
       initialNumToRender={50}
       maxToRenderPerBatch={30}
       windowSize={10}

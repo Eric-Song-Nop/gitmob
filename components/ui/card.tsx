@@ -7,7 +7,7 @@ function Card({ className, ...props }: ViewProps) {
   return (
     <View
       className={cn(
-        'rounded-lg border border-border bg-card shadow-sm shadow-foreground/10',
+        'rounded-[28px] border border-border bg-card shadow-sm shadow-foreground/10',
         className
       )}
       {...props}

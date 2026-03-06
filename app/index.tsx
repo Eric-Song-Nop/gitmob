@@ -1,6 +1,9 @@
 import { useAuthStore } from '@/stores/authStore';
-import { Redirect } from 'expo-router';
+import { Redirect, type Href } from 'expo-router';
 import { ActivityIndicator, View } from 'react-native';
+
+const LOGIN_ROUTE = '/login' as Href;
+const REVIEW_ROUTE = '/review' as Href;
 
 export default function Index() {
   const { isLoading, isAuthenticated } = useAuthStore();
@@ -13,9 +16,5 @@ export default function Index() {
     );
   }
 
-  if (isAuthenticated) {
-    return <Redirect href="/(tabs)/pulls" />;
-  }
-
-  return <Redirect href="/login" />;
+  return <Redirect href={isAuthenticated ? REVIEW_ROUTE : LOGIN_ROUTE} />;
 }

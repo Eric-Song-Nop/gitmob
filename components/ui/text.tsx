@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils';
 import * as Slot from '@rn-primitives/slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 import * as React from 'react';
-import { Platform, Text as RNText, type Role } from 'react-native';
+import { Platform, Text as RNText, type Role, type TextStyle } from 'react-native';
 
 const textVariants = cva(
   cn(
@@ -64,10 +64,25 @@ const ARIA_LEVEL: Partial<Record<TextVariant, string>> = {
 
 const TextClassContext = React.createContext<string | undefined>(undefined);
 
+function getFontFamily(variant: TextVariant): TextStyle['fontFamily'] {
+  switch (variant) {
+    case 'h1':
+    case 'h2':
+    case 'h3':
+    case 'h4':
+      return 'BricolageGrotesque';
+    case 'code':
+      return 'JetBrainsMono';
+    default:
+      return 'InstrumentSans';
+  }
+}
+
 function Text({
   className,
   asChild = false,
   variant = 'default',
+  style,
   ...props
 }: React.ComponentProps<typeof RNText> &
   TextVariantProps &
@@ -81,6 +96,7 @@ function Text({
       className={cn(textVariants({ variant }), textClass, className)}
       role={variant ? ROLE[variant] : undefined}
       aria-level={variant ? ARIA_LEVEL[variant] : undefined}
+      style={[{ fontFamily: getFontFamily(variant ?? 'default') }, style]}
       {...props}
     />
   );

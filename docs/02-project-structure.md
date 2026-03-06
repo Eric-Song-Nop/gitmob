@@ -1,264 +1,283 @@
 # 项目目录结构
 
-## 完整结构
+## 目标
 
-```
+目录文档必须反映两件事：
+
+- 当前仓库真实结构
+- 新的 UI/UX 方向下应该如何继续演进
+
+本项目当前采用 Expo Router 根目录布局，不再使用文档里虚构的 `src/` 结构。
+
+## 当前仓库基线
+
+```text
 gitmob/
-├── app.json                          # Expo 配置（scheme: gitmob）
+├── api/
+├── app/
+├── assets/
+├── components/
+├── constants/
+├── docs/
+├── hooks/
+├── lib/
+├── modules/
+├── services/
+├── stores/
+├── app.json
 ├── package.json
-├── tsconfig.json                     # 路径别名 @/* → ./src/*
-├── tailwind.config.ts                # Tailwind CSS 配置（NativeWind）
-├── global.css                        # Tailwind 指令 + CSS 变量（主题色）
-├── babel.config.js
-├── metro.config.js                   # 配置 assetExts 支持 .scm 文件 + NativeWind
-├── CLAUDE.md                         # AI 辅助开发指令
-│
-├── src/
-│   ├── app/                          # expo-router 文件路由
-│   ├── components/                   # UI 组件
-│   ├── lib/                          # 工具函数
-│   ├── hooks/                        # 自定义 Hooks
-│   ├── api/                          # GitHub API 层
-│   ├── stores/                       # Zustand 状态管理
-│   ├── services/                     # 业务服务
-│   ├── constants/                    # 常量定义
-│   └── types/                        # TypeScript 类型
-│
-├── modules/                          # Expo 本地原生模块
-│   └── tree-sitter/                  # tree-sitter 原生模块
-│
-├── assets/                           # 静态资源
-│   ├── fonts/
-│   └── images/
-│
-└── docs/                             # 项目文档
+└── ...
 ```
 
-## 详细说明
+## 顶层目录说明
 
-### `src/app/` — 路由页面
+### `app/`
 
-```
-src/app/
-├── _layout.tsx                       # 根布局（QueryClientProvider + Zustand 初始化）
-├── index.tsx                         # 入口重定向（已登录 → tabs, 未登录 → login）
-├── login.tsx                         # GitHub Device Flow 登录页
-├── (tabs)/
-│   ├── _layout.tsx                   # Tab 导航布局（底部 Tab Bar）
-│   ├── pulls/
-│   │   ├── index.tsx                 # PR 列表页（review-requested 筛选）
-│   │   └── [owner]/[repo]/[number]/
-│   │       ├── _layout.tsx           # PR 详情布局（顶部 Tab: Overview / Files）
-│   │       ├── index.tsx             # PR 概要页（描述、CI 状态、reviewers）
-│   │       ├── files.tsx             # 文件变更列表（Miller Columns 入口）
-│   │       └── diff.tsx              # Diff 查看页（?path=xxx 查询参数选择文件）
-│   ├── notifications.tsx             # 通知 Tab（MVP 简化版）
-│   └── profile.tsx                   # 用户设置 Tab（登出、字体大小等）
-└── command-center.tsx                # 命令中心（modal 路由，覆盖在当前页面之上）
-```
+Expo Router 页面和布局。
 
-### `src/components/` — UI 组件
+当前仓库已有：
 
-```
-src/components/
-├── code/                             # 代码渲染核心组件
-│   ├── CodeView.tsx                  # 高层代码视图（FlatList 虚拟化渲染）
-│   ├── DiffView.tsx                  # Diff 视图（高亮+折叠+评论集成）
-│   ├── DiffHunk.tsx                  # 单个 Diff Hunk 渲染
-│   ├── CodeLine.tsx                  # 单行代码渲染（token 拼接着色）
-│   ├── FoldingGutter.tsx             # 折叠控制区（展开/收起按钮）
-│   ├── LineNumbers.tsx               # 行号组件
-│   └── SyntaxToken.tsx               # 语法 Token 渲染（单个着色片段）
-│
-├── explorer/                         # 文件浏览组件
-│   ├── MillerColumns.tsx             # Finder 风格水平滚动列导航
-│   ├── MillerColumn.tsx              # 单列渲染（目录下的文件/子目录列表）
-│   └── FileTreeItem.tsx              # 文件/文件夹项（含变更类型 badge）
-│
-├── pr/                               # PR 相关组件
-│   ├── PRListItem.tsx                # PR 列表项（标题、作者、状态标签）
-│   ├── PRHeader.tsx                  # PR 头部信息（PR 标题、分支、描述摘要）
-│   ├── ReviewActions.tsx             # 审查操作按钮（Approve / Request Changes）
-│   ├── CommentThread.tsx             # 评论线程（嵌套回复）
-│   ├── CommentInput.tsx              # 评论输入框
-│   └── ReviewSummary.tsx             # 审查摘要（待提交评论数、操作确认）
-│
-├── command/                          # 命令中心组件
-│   ├── CommandCenter.tsx             # 命令中心面板（@gorhom/bottom-sheet）
-│   ├── CommandItem.tsx               # 命令项（图标 + 标题 + 快捷键提示）
-│   └── CommandSearch.tsx             # 命令搜索框（模糊匹配过滤）
-│
-├── outline/                          # 符号大纲组件
-│   ├── SymbolOutline.tsx             # 符号大纲面板（可滑出）
-│   └── SymbolItem.tsx                # 大纲项（函数/类/方法，缩进层级）
-│
-├── ui/                               # React Native Reusables 基础组件（copy-paste）
-│   ├── avatar.tsx                    # 头像（@rn-primitives/avatar）
-│   ├── badge.tsx                     # 徽章
-│   ├── button.tsx                    # 按钮（多 variant: default/destructive/outline/ghost）
-│   ├── card.tsx                      # 卡片容器
-│   ├── dialog.tsx                    # 对话框（@rn-primitives/dialog）
-│   ├── input.tsx                     # 文本输入框
-│   ├── label.tsx                     # 标签（@rn-primitives/label）
-│   ├── separator.tsx                 # 分割线（@rn-primitives/separator）
-│   ├── skeleton.tsx                  # 骨架屏
-│   ├── tabs.tsx                      # 标签页（@rn-primitives/tabs）
-│   ├── text.tsx                      # 文本（统一排版样式）
-│   ├── textarea.tsx                  # 多行文本输入
-│   └── tooltip.tsx                   # 工具提示（@rn-primitives/tooltip）
-│
-└── common/                           # 业务通用组件（基于 ui/ 组合）
-    ├── StatusBadge.tsx               # 状态 Badge（变更类型、review 状态等）
-    └── LoadingState.tsx              # 加载状态（骨架屏 / Spinner）
-```
+- `app/_layout.tsx`
+- `app/index.tsx`
+- `app/login.tsx`
+- `app/(tabs)/pulls/...`
+- `app/(tabs)/notifications.tsx`
+- `app/(tabs)/profile.tsx`
 
-### `src/lib/` — 工具函数
+新的 UI/UX 方向下，虽然仍可保留路由分组，但**核心体验不再依赖常驻 tab bar 和 header**。
 
-```
-src/lib/
-├── utils.ts                          # cn() 工具函数（clsx + tailwind-merge）
-└── icons.ts                          # lucide-react-native 图标统一导出
-```
+### `api/`
 
-### `src/hooks/` — 自定义 Hooks
+承载 GitHub 查询和 LLM 薄适配层。
 
-```
-src/hooks/
-├── useTreeSitter.ts                  # tree-sitter 解析入口 Hook
-├── useSyntaxHighlight.ts             # 语法高亮 Hook（调用 tree-sitter highlight）
-├── useCodeFolding.ts                 # 代码折叠 Hook（折叠范围计算 + 状态管理）
-├── useSymbolOutline.ts               # 符号大纲 Hook（AST → 符号树）
-├── useDiffParser.ts                  # Diff 解析 Hook（unified diff → 结构化数据）
-├── useGitHubAuth.ts                  # GitHub 认证 Hook（@octokit/auth-oauth-device 封装）
-└── useCommandCenter.ts               # 命令中心 Hook（命令注册 + 搜索 + 执行）
-```
+当前已有：
 
-### `src/api/` — GitHub API 层
+- `client.ts`
+- `queries/usePullRequests.ts`
+- `queries/usePullRequest.ts`
+- `queries/usePRFiles.ts`
+- `queries/usePRDiff.ts`
+- `queries/usePRComments.ts`
+- `types.ts`
 
-```
-src/api/
-├── client.ts                         # Octokit 统一实例（REST + GraphQL，从 authStore 读 token）
-├── queries/                          # TanStack Query hooks（读操作）
-│   ├── usePullRequests.ts            # GraphQL: review-requested PR 列表
-│   ├── usePullRequest.ts             # GraphQL: PR 详情
-│   ├── usePRFiles.ts                 # REST: GET /pulls/{n}/files
-│   ├── usePRDiff.ts                  # REST: Accept:diff 获取 unified diff
-│   ├── usePRReviews.ts               # REST: PR Review 列表
-│   ├── usePRComments.ts              # GraphQL: reviewThreads 评论线程
-│   └── useFileContent.ts             # REST: /contents/{path}?ref={sha}
-├── mutations/                        # TanStack Query mutations（写操作）
-│   ├── useCreateReview.ts            # 创建 Review（批量提交评论 + 操作）
-│   ├── useCreateComment.ts           # 创建行内评论
-│   └── useSubmitReview.ts            # 提交 Review（APPROVE / REQUEST_CHANGES）
-└── types.ts                          # API 响应/请求类型定义
-```
+建议新增：
 
-### `src/stores/` — Zustand 状态
+- `mutations/useCreateReview.ts`
+- `mutations/useCreateReviewComment.ts`
+- `llm/providers.ts`
+- `llm/segmentPullRequest.ts`
+- `llm/types.ts`
 
-```
-src/stores/
-├── authStore.ts                      # 认证状态：token, user, isAuthenticated
-├── codeViewStore.ts                  # 代码视图状态：foldedLines, fontSize, diffMode
-├── reviewStore.ts                    # 审查状态：pendingComments[], draftBody
-└── commandStore.ts                   # 命令中心状态：isOpen, recentCommands
-```
+### `components/`
 
-### `src/services/` — 业务服务
+承载所有视觉组件。
 
-```
-src/services/
-├── treeSitter.ts                     # tree-sitter JS 服务层（parser 生命周期管理）
-├── diffParser.ts                     # Unified Diff 解析器（字符串 → DiffFile[]）
-├── highlightTheme.ts                 # capture name → 颜色映射（One Dark 等主题）
-└── languageRegistry.ts               # 文件扩展名 → 语言 ID 映射
-```
+当前已有：
 
-### `src/constants/` — 常量
+- `components/pr/*`
+- `components/common/*`
+- `components/ui/*`
 
-```
-src/constants/
-├── colors.ts                         # 语法高亮颜色表（tree-sitter 专用，不走 Tailwind）
-└── languages.ts                      # 支持的语言列表及元数据
-```
+新的 UI/UX 方向下，建议重点新增 `review/` 目录：
 
-### `src/types/` — TypeScript 类型
+- `AmbientCanvas.tsx`
+- `UtilityRow.tsx`
+- `FloatingProfileOrb.tsx`
+- `ReviewDeck.tsx`
+- `ReviewCard.tsx`
+- `ActionDock.tsx`
+- `CodePeekSheet.tsx`
+- `CommentComposerSheet.tsx`
+- `OutcomeSheet.tsx`
 
-```
-src/types/
-├── diff.ts                           # Diff 相关类型（DiffFile, DiffHunk, DiffLine）
-├── treeSitter.ts                     # tree-sitter 相关类型
-├── github.ts                         # GitHub API 相关类型
-└── navigation.ts                     # 导航参数类型
-```
+### `hooks/`
 
-### `modules/tree-sitter/` — 原生模块
+封装页面层逻辑。
 
-详见 [04-tree-sitter-module.md](./04-tree-sitter-module.md)
+当前已有：
 
-```
-modules/tree-sitter/
-├── expo-module.config.json           # Expo 模块配置
-├── package.json                      # 模块依赖
-├── tsconfig.json
-├── src/                              # TypeScript API 层
-│   ├── index.ts                      # 公共 API 导出
-│   ├── TreeSitterModule.ts           # requireNativeModule 桥接
-│   ├── types.ts                      # TypeScript 接口定义
-│   ├── constants.ts                  # 语言枚举、scope 名称表
-│   └── useTreeSitter.ts             # React Hook 封装
-├── cpp/                              # 共享 C++ 核心（iOS/Android 共用）
-│   ├── CMakeLists.txt
-│   ├── TreeSitterCore.h/cpp
-│   ├── ParserPool.h/cpp
-│   ├── QueryEngine.h/cpp
-│   ├── ResultSerializer.h/cpp
-│   ├── LanguageRegistry.h/cpp
-│   └── IncrementalState.h/cpp
-├── vendor/                           # 第三方 C 源码
-│   ├── tree-sitter/                  # tree-sitter C 运行时
-│   └── grammars/                     # 各语言语法 C 源码（16 种）
-├── queries/                          # .scm 查询文件
-│   ├── javascript/
-│   │   ├── highlights.scm
-│   │   ├── folds.scm
-│   │   └── locals.scm
-│   ├── typescript/...
-│   └── ...
-├── ios/                              # iOS 原生桥接
-│   ├── TreeSitterModule.swift
-│   ├── TreeSitterModule.podspec
-│   └── bridge/
-│       ├── TreeSitterBridge.h
-│       └── TreeSitterBridge.mm
-└── android/                          # Android 原生桥接
-    ├── build.gradle
-    ├── src/main/
-    │   ├── java/expo/modules/treesitter/
-    │   │   └── TreeSitterModule.kt
-    │   ├── jni/
-    │   │   ├── CMakeLists.txt
-    │   │   ├── TreeSitterJNI.cpp
-    │   │   └── OnLoad.cpp
-    │   └── assets/queries/
-    └── proguard-rules.pro
+- `useGitHubAuth.ts`
+
+建议新增：
+
+- `useSegmentation.ts`
+- `useReviewSession.ts`
+- `useReviewSubmission.ts`
+- `useChromeState.ts`
+
+### `services/`
+
+承载领域逻辑，不应夹杂页面层和 provider 层细节。
+
+当前已有：
+
+- `diffParser.ts`
+
+建议新增：
+
+- `segmentation/buildSegmentationInput.ts`
+- `segmentation/mergeSegments.ts`
+- `segmentation/validateCoverage.ts`
+- `review/deriveReviewEvent.ts`
+- `review/buildGitHubComments.ts`
+
+### `stores/`
+
+承载客户端状态。
+
+当前已有：
+
+- `authStore.ts`
+
+建议新增：
+
+- `reviewDraftStore.ts`
+- `llmConfigStore.ts`
+- `uiSessionStore.ts`
+- `chromeStore.ts`
+
+### `modules/`
+
+保留为原生扩展实验区。
+
+当前方向下：
+
+- `modules/` 不属于主路径
+- tree-sitter 原生模块不进入当前 UI/UX 重写范围
+
+## 推荐目标结构
+
+```text
+api/
+├── client.ts
+├── queries/
+│   ├── usePullRequests.ts
+│   ├── usePullRequest.ts
+│   ├── usePRFiles.ts
+│   ├── usePRDiff.ts
+│   └── usePRComments.ts
+├── mutations/
+│   ├── useCreateReview.ts
+│   └── useCreateReviewComment.ts
+├── llm/
+│   ├── providers.ts
+│   ├── segmentPullRequest.ts
+│   └── types.ts
+└── types.ts
+
+app/
+├── _layout.tsx
+├── index.tsx
+├── login.tsx
+└── (tabs)/
+    ├── _layout.tsx
+    ├── pulls/
+    │   ├── index.tsx
+    │   └── [owner]/[repo]/[number]/
+    │       ├── _layout.tsx
+    │       ├── index.tsx
+    │       ├── files.tsx
+    │       └── review.tsx
+    ├── notifications.tsx
+    └── profile.tsx
+
+components/
+├── common/
+├── pr/
+├── review/
+└── ui/
+
+services/
+├── diffParser.ts
+├── segmentation/
+│   ├── buildSegmentationInput.ts
+│   ├── mergeSegments.ts
+│   └── validateCoverage.ts
+└── review/
+    ├── buildGitHubComments.ts
+    └── deriveReviewEvent.ts
 ```
 
-### `assets/` — 静态资源
+## 页面职责建议
 
-```
-assets/
-├── fonts/
-│   └── FiraCode-Regular.ttf          # 等宽代码字体
-└── images/                           # 应用图标、启动画面等
-```
+### `app/(tabs)/pulls/index.tsx`
 
-## 配置文件说明
+职责：
 
-| 文件 | 用途 |
-|------|------|
-| `app.json` | Expo 应用配置，`scheme: "gitmob"` 用于深度链接 |
-| `tsconfig.json` | TypeScript 配置，路径别名 `@/*` → `./src/*` |
-| `tailwind.config.ts` | Tailwind CSS 配置，定义主题色、间距、字体，供 NativeWind 编译使用 |
-| `global.css` | Tailwind 指令（`@tailwind base/components/utilities`）+ CSS 变量定义暗色/亮色主题 |
-| `metro.config.js` | Metro 打包配置，添加 `.scm` 到 `assetExts` + `withNativeWind()` 集成 |
-| `babel.config.js` | Babel 配置，支持 Reanimated 插件 + NativeWind preset |
+- 展示 PR feed
+- 使用 `SpotlightPRCard` 和预览条替代传统密集列表
+- 提供进入 PR 详情和 review 的主入口
+
+### `app/(tabs)/pulls/[owner]/[repo]/[number]/index.tsx`
+
+职责：
+
+- 展示 PR 概要
+- 展示作者、reviewers、CI 状态、改动规模
+- 进入 `Files` 或 `Review`
+
+### `app/(tabs)/pulls/[owner]/[repo]/[number]/files.tsx`
+
+职责：
+
+- 展示文件列表
+- 提供非 card-first 模式下的补充浏览入口
+- 作为需要按文件回看时的辅助界面
+
+### `app/(tabs)/pulls/[owner]/[repo]/[number]/review.tsx`
+
+职责：
+
+- 拉取 diff
+- parse diff
+- 触发 segmentation
+- 启动 review deck
+- 管理 code peek、comment sheet、outcome sheet
+
+## 组件分组建议
+
+### `components/pr/`
+
+偏 PR 浏览和概览：
+
+- `SpotlightPRCard.tsx`
+- `QueuePreviewStrip.tsx`
+- `PRMetaPills.tsx`
+- `PRHeader.tsx`
+- `PRListItem.tsx`
+
+### `components/review/`
+
+偏全屏审查体验：
+
+- `AmbientCanvas.tsx`
+- `UtilityRow.tsx`
+- `FloatingProfileOrb.tsx`
+- `ReviewDeck.tsx`
+- `ReviewCard.tsx`
+- `ActionDock.tsx`
+- `CodePeekSheet.tsx`
+- `CommentComposerSheet.tsx`
+- `OutcomeSheet.tsx`
+
+### `components/ui/`
+
+仍然保留基础 UI 组件，但不再让页面依赖传统 header/footer 组合。
+
+## 路由与视觉壳层的关系
+
+虽然项目仍然可以保留 `(tabs)` 路由组，但 UI 上应遵守以下规则：
+
+- `review.tsx` 中隐藏或弱化 tab shell
+- 核心体验使用 floating controls 和 sheets
+- 页面切换时优先保留全屏感，而不是把 tab/navigation chrome 强行露出来
+
+## 当前不建议继续扩张的目录
+
+以下方向暂时不应继续扩张：
+
+- `modules/tree-sitter/*`
+- 传统命令中心专属目录
+- 围绕 header/footer 设计的大量导航组件
+
+因为它们不属于这轮主路径。
