@@ -42,7 +42,7 @@ Transient Layers
 - 不使用常驻大 header
 - 不使用常驻底部 tab bar
 - 首页 PR deck 不保留按钮式 fallback
-- review 内保留必要按钮，但只限 `ActionDock` 和 overlays
+- review 内不保留底部工具栏，主要动作由卡片手势和 overlays 承担
 
 ## 四层职责
 
@@ -53,7 +53,6 @@ Transient Layers
 - Expo Router 页面
 - `PR deck`
 - `segment deck`
-- `ActionDock`
 - `CommentOverlay`
 - `SubmitReviewOverlay`
 - 动效和手势反馈

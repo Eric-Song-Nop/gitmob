@@ -102,7 +102,6 @@ Expo Router 页面和布局。
 - `SegmentReviewCard.tsx`
 - `CardFrontSummary.tsx`
 - `CardBackDiff.tsx`
-- `ActionDock.tsx`
 - `CommentOverlay.tsx`
 - `SubmitReviewOverlay.tsx`
 - `ProgressPill.tsx`

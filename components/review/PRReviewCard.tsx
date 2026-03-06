@@ -13,6 +13,15 @@ interface PRReviewCardProps {
   detailPending?: boolean;
 }
 
+function buildInboxContext(item: InboxPRCardModel) {
+  if (item.sources.length === 1) {
+    return `In your inbox because this PR is ${getSourceLabel(item.primarySource).toLowerCase()}.`;
+  }
+
+  const labels = item.sources.map((source) => getSourceLabel(source).toLowerCase());
+  return `In your inbox because this PR is ${labels.join(' + ')}.`;
+}
+
 function ReviewSummary({ detail }: { detail?: PullRequestDetail }) {
   const approved = detail?.reviews.filter((review) => review.state === 'APPROVED').length ?? 0;
   const changesRequested =
@@ -53,6 +62,7 @@ function CISummary({ detail }: { detail?: PullRequestDetail }) {
 export function PRReviewCard({ item, mode, detail, detailPending }: PRReviewCardProps) {
   const pr = item.pullRequest;
   const bodyPreview = (detail?.body || pr.body || '').trim();
+  const inboxContext = buildInboxContext(item);
 
   if (mode === 'peek') {
     return (
@@ -87,6 +97,11 @@ export function PRReviewCard({ item, mode, detail, detailPending }: PRReviewCard
               {bodyPreview || 'No PR description provided.'}
             </Text>
 
+            <Text className="mt-5 text-xs uppercase tracking-[0.22em] text-muted-foreground">
+              Why now
+            </Text>
+            <Text className="mt-2 text-sm leading-6 text-foreground/85">{inboxContext}</Text>
+
             {detail?.labels?.length ? (
               <View className="mt-5 flex-row flex-wrap gap-2">
                 {detail.labels.slice(0, 6).map((label) => (
@@ -109,22 +124,22 @@ export function PRReviewCard({ item, mode, detail, detailPending }: PRReviewCard
 
   return (
     <View className="flex-1 rounded-[30px] border border-border bg-card px-5 py-6 shadow-sm shadow-black/10">
-      <View className="flex-row items-start justify-between gap-3">
-        <Text className="flex-1 text-xs uppercase tracking-[0.28em] text-muted-foreground">
-          {pr.repository.nameWithOwner}
-        </Text>
-        <View className="flex-row flex-wrap justify-end gap-2">
-          <Badge variant="outline">
-            <Text className="text-xs">{getSourceLabel(item.primarySource)}</Text>
+      <View className="flex-row flex-wrap gap-2">
+        {item.sources.map((source) => (
+          <Badge key={source} variant={source === item.primarySource ? 'secondary' : 'outline'}>
+            <Text className="text-xs">{getSourceLabel(source)}</Text>
           </Badge>
-          {item.sources.length > 1 ? (
-            <Badge variant="secondary">
-              <Text className="text-xs">+{item.sources.length - 1}</Text>
-            </Badge>
-          ) : null}
-        </View>
+        ))}
+        {pr.isDraft ? (
+          <Badge>
+            <Text className="text-xs text-primary-foreground">Draft</Text>
+          </Badge>
+        ) : null}
       </View>
 
+      <Text className="mt-5 text-xs uppercase tracking-[0.28em] text-muted-foreground">
+        {pr.repository.nameWithOwner}
+      </Text>
       <Text variant="h3" className="mt-3 border-b-0 pb-0 text-left text-[30px] leading-[34px]">
         {pr.title}
       </Text>
@@ -136,11 +151,6 @@ export function PRReviewCard({ item, mode, detail, detailPending }: PRReviewCard
         <Badge variant="secondary"><Text className="text-xs">{pr.changedFiles} files</Text></Badge>
         <Badge variant="secondary"><Text className="text-xs">+{pr.additions}</Text></Badge>
         <Badge variant="secondary"><Text className="text-xs">-{pr.deletions}</Text></Badge>
-        {pr.isDraft ? (
-          <Badge>
-            <Text className="text-xs text-primary-foreground">Draft</Text>
-          </Badge>
-        ) : null}
       </View>
 
       {pr.labels?.length ? (
@@ -152,6 +162,21 @@ export function PRReviewCard({ item, mode, detail, detailPending }: PRReviewCard
           ))}
         </View>
       ) : null}
+
+      <View className="mt-auto gap-4 pt-8">
+        <View>
+          <Text className="text-xs uppercase tracking-[0.22em] text-muted-foreground">
+            Why this is in your inbox
+          </Text>
+          <Text className="mt-2 text-sm leading-6 text-foreground/85">{inboxContext}</Text>
+        </View>
+        <View className="rounded-[22px] border border-border/70 bg-backgroundAlt/70 px-4 py-3">
+          <Text className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Decision cue</Text>
+          <Text className="mt-2 text-sm leading-6 text-foreground/85">
+            Enter review if this looks worth handling now. Peek for body, CI, and review pulse.
+          </Text>
+        </View>
+      </View>
     </View>
   );
 }

@@ -4,6 +4,7 @@ import { Redirect, router, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
+import { BlurView } from 'expo-blur';
 import { ArrowLeftIcon } from 'lucide-react-native';
 
 import { usePRInbox } from '@/api/queries/usePRInbox';
@@ -15,7 +16,6 @@ import type { PullRequest } from '@/api/types';
 import type { SegmentCardModel } from '@/api/llm/types';
 import { segmentPullRequest } from '@/api/llm/segmentPullRequest';
 import { AmbientCanvas } from '@/components/review/AmbientCanvas';
-import { ActionDock } from '@/components/review/ActionDock';
 import { CommentOverlay } from '@/components/review/CommentOverlay';
 import { FloatingProfileOrb } from '@/components/review/FloatingProfileOrb';
 import { PRDeck } from '@/components/review/PRDeck';
@@ -369,6 +369,19 @@ export default function ReviewScreen() {
             }
           />
           {effectivePR ? <RepoPill repo={effectivePR.repository.nameWithOwner} /> : null}
+          {mode === 'segment-deck' ? (
+            <Pressable onPress={() => setMode('submit-overlay')}>
+              <BlurView
+                intensity={28}
+                tint="default"
+                className="overflow-hidden rounded-full border border-border/80 px-3 py-2"
+              >
+                <Text className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                  Summary
+                </Text>
+              </BlurView>
+            </Pressable>
+          ) : null}
         </View>
 
         <FloatingProfileOrb user={user} onPress={() => router.push(SETTINGS_ROUTE)} />
@@ -444,16 +457,12 @@ export default function ReviewScreen() {
                 nextSegment={nextSegment}
                 isFlipped={flippedSegmentIds.includes(currentSegment.id)}
                 onFlip={toggleFlip}
-                file={currentFile}
-                threads={currentThreads}
-                onLinePress={openInlineComment}
-              />
-              <ActionDock
                 onAccept={() => recordDecision('accepted')}
                 onConcern={() => recordDecision('has-concern', { blocking: true })}
                 onComment={openSegmentComment}
-                onSkip={() => recordDecision('skipped')}
-                onSubmit={() => setMode('submit-overlay')}
+                file={currentFile}
+                threads={currentThreads}
+                onLinePress={openInlineComment}
               />
             </>
           ) : (

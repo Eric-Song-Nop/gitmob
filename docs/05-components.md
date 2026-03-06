@@ -41,7 +41,7 @@
 
 - 安全区内的浮动 pill
 - 悬浮 avatar orb
-- review 内底部 `ActionDock`
+- review 内通过卡片手势和 overlays 承担主动作
 - overlay 弹层
 - PR 卡片滑动反馈标签
 
@@ -173,24 +173,23 @@
 - 当前默认代码查看方式是卡片背面，不是 sheet-first
 - `DiffView`、`DiffLine`、`CommentThread` 仍然是这条链路的一部分
 
-### `ActionDock`
+### `SegmentReviewCard` 手势语义
 
 职责：
 
-- 承担 segment review 的主要按钮动作
+- 直接承接 segment review 主动作
 
 当前动作：
 
-- `Accept`
-- `Concern`
-- `Comment`
-- `Skip`
-- `Submit`
+- 右滑：`Accept`
+- 左滑：`Concern`
+- 上滑：`Comment`
 
 约束：
 
-- 只存在于 segment review 阶段
-- 首页 PR deck 不共享这套动作
+- 正面承担判断
+- 背面承担证据与行评论
+- `Submit` 通过顶部入口或最后一张后的收束进入
 
 ### `CommentOverlay`
 

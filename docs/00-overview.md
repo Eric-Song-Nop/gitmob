@@ -83,7 +83,7 @@ GitMob 核心流已经收敛为三个真实页面：
   - progress pill
   - repo pill
   - floating profile orb
-- 底部只在 segment review 中显示 `ActionDock`
+- segment review 的主要动作由卡片手势承担
 
 ## 当前审查模型
 
