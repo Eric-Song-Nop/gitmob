@@ -1,204 +1,128 @@
 # 实现路线图
 
-## 重写后的执行原则
+## 当前阶段判断
 
-这轮路线图新增一个高优先级目标：
+核心产品链路已经完成第一轮落地：
 
-> 在不牺牲代码审查可靠性的前提下，把 GitMob 的 UI/UX 从“工具页”重塑成“有 Tinder 感的移动内容流体验”。
+- 登录
+- 多来源 PR inbox
+- 纯手势 PR deck
+- segment review deck
+- comment / submit overlay
+- Moonshot native structured outputs
 
-因此，路线图不再只关注功能闭环，还要同步推进：
+当前路线图不再以“从零构建 UI reset”为目标，而是进入第二阶段：
 
-- 视觉方向
-- 导航壳层
-- 全屏卡片体验
-- 无 header/footer 的空间重构
+- 收口
+- 清理
+- 稳定化
+- 与当前实现对齐
 
-## Phase 0: UI Reset
-
-### 目标
-
-先定义新的移动端体验，不继续在旧 UI 上打补丁。
-
-### 任务
-
-- [ ] 明确新的视觉方向和设计 token
-- [ ] 确定 `No Header, No Footer First` 原则
-- [ ] 确定 PR feed、review deck、outcome sheet 三个核心屏的空间结构
-- [ ] 定义 action dock、top pills、floating orb 的职责
-- [ ] 定义动效和触觉反馈规则
-
-### 验收标准
-
-- [ ] 文档层面已明确新的 UI/UX 北极星
-- [ ] 所有核心页面都不再依赖传统 header/footer 作为主容器
-
-## Phase 1: Shell 与导航重构
+## Phase 1: 主流程稳定化
 
 ### 目标
 
-把传统页面框架改成 chrome-light shell。
+把已经跑通的 `review` 主流程进一步稳定下来。
 
 ### 任务
 
-- [ ] 移除核心流程中的常驻 header
-- [ ] 移除核心流程中的常驻 footer/tab bar
-- [ ] 实现安全区浮动 utility row
-- [ ] 实现 floating profile orb
-- [ ] 实现统一 sheet 容器
-- [ ] 设计 route 之间的转场节奏
+- [x] `login -> review -> settings` 路由收敛
+- [x] 多来源 PR inbox 聚合
+- [x] 纯手势 PR deck
+- [x] segment 双面卡片
+- [x] comment overlay
+- [x] submit overlay
+- [x] GitHub review 提交
+- [x] Moonshot native structured outputs
 
 ### 验收标准
 
-- [ ] PR feed 和 review flow 在视觉上接近全屏
-- [ ] 导航控制不再挤压主内容区域
+- [x] 首页和 review 已不依赖 tabs / top tabs
+- [x] 纯手势 PR deck 可工作
+- [x] Moonshot China/Global 切换可工作
 
-## Phase 2: PR Feed 重设计
+## Phase 2: 仓库清理
 
 ### 目标
 
-让用户进入应用后看到的是“值得现在处理的对象”，不是传统列表。
+删除旧 PR 详情时代遗留的孤立路径和依赖。
 
 ### 任务
 
-- [ ] 设计 `PRFeedScreen`
-- [ ] 实现 `SpotlightPRCard`
-- [ ] 实现 `QueuePreviewStrip`
-- [ ] 重写 PR metadata 的层级和信息密度
-- [ ] 加入 feed 入场和 hover/press 反馈
+- [x] 删除 `usePRFiles.ts`
+- [x] 删除旧 `PRHeader.tsx`、`PRListItem.tsx` 等零引用组件
+- [x] 删除 bottom-sheet / material-top-tabs / pager-view 残留依赖
+- [x] 收拢文档到当前真实结构
 
 ### 验收标准
 
-- [ ] 首屏具备明显的个性化和年轻感
-- [ ] PR 主卡的信息密度适合一眼判断是否进入 review
+- [x] 零引用旧组件已删除
+- [x] 依赖树不再保留无效主路径依赖
+- [x] 文档不再描述旧 tabs / PR detail / files 页面架构
 
-## Phase 3: Review Deck 重设计
+## Phase 3: 交互与可靠性打磨
 
 ### 目标
 
-把 segment review 变成真正的 card-first 流程。
+围绕当前已落地的主路径继续提升使用感和可靠性。
 
 ### 任务
 
-- [ ] 设计 `ReviewDeckScreen`
-- [ ] 实现 `ReviewDeck`
-- [ ] 实现 `ReviewCard`
-- [ ] 实现 `ActionDock`
-- [ ] 实现 `PeekHandle`
-- [ ] 调整段级动作的反馈语义
-- [ ] 为 `Accept / Concern / Comment / Skip` 加入动作语言和视觉反馈
+- [ ] 优化 PR deck 手势阈值和反馈语义
+- [ ] 优化 segment 翻面和 diff 背面阅读体验
+- [ ] 强化 health check 错误信息和可诊断性
+- [ ] 增强 review 返回 inbox 时的状态恢复体验
+- [ ] 继续收窄老路径注释、无效代码和样式残留
 
 ### 验收标准
 
-- [ ] 当前 segment 始终是屏幕视觉中心
-- [ ] 主要动作都在拇指热区完成
-- [ ] 用户不会怀念传统 footer 工具栏
+- [ ] PR 分诊和 segment review 的边界更清晰
+- [ ] health check 与正式 segmentation 表现一致
+- [ ] review 回到 inbox 时状态连贯
 
-## Phase 4: Code Peek 与 Comment Flow
+## Phase 4: 性能与质量保证
 
 ### 目标
 
-在不引入重 chrome 的前提下，完成代码查看和评论。
+确保大 PR 和连续使用时仍然可靠。
 
 ### 任务
 
-- [ ] 实现 `CodePeekSheet`
-- [ ] 实现 `CommentComposerSheet`
-- [ ] 定义行评论入口和段评论入口
-- [ ] 解决 deck、sheet、scroll 之间的手势冲突
-- [ ] 保证评论锚点仍由 parser 精确提供
+- [ ] 优化大 diff 下的 segment 背面渲染成本
+- [ ] 控制背景和卡片动画成本
+- [ ] 继续 memo 化重组件
+- [ ] 增强错误态和空状态一致性
+- [ ] 为关键业务层补测试覆盖
 
 ### 验收标准
 
-- [ ] 打开代码时不会破坏整体卡片节奏
-- [ ] 评论输入流程清晰且不挤占主界面
+- [ ] 大 PR 下 review deck 仍可用
+- [ ] 动效不明显拖慢界面
+- [ ] 覆盖校验、review event 推导和 Moonshot provider 路径有稳定测试
 
-## Phase 5: Outcome 与提交体验
-
-### 目标
-
-让提交 review 的过程有“完成一轮匹配/筛选”的收束感。
-
-### 任务
-
-- [ ] 实现 `OutcomeSheet`
-- [ ] 设计大数字统计和情绪标签
-- [ ] 预览最终 review event
-- [ ] 编辑 summary body
-- [ ] 提交 review
-
-### 验收标准
-
-- [ ] Summary 不像传统表单确认页
-- [ ] 最终提交有明确收束感和完成感
-
-## Phase 6: 基础能力接入
-
-### 目标
-
-保持现有可靠性要求不变，把 UI 重构和数据能力接上。
-
-### 任务
-
-- [ ] GitHub Device Flow 登录
-- [ ] PR 列表与 PR 详情查询
-- [ ] unified diff 拉取
-- [ ] parseDiff 接入
-- [ ] Vercel AI SDK segmentation 接入
-- [ ] coverage 校验
-- [ ] GitHub review 提交
-
-### 验收标准
-
-- [ ] 新 UI 壳层下的真实审查闭环跑通
-- [ ] 每个 hunk 仍保持 100% coverage
-- [ ] 评论仍能准确提交到 GitHub diff
-
-## Phase 7: 动效与性能打磨
-
-### 目标
-
-让“青春活力”来自节奏和反馈，而不是过度动画。
-
-### 任务
-
-- [ ] 优化页面切换转场
-- [ ] 优化 action dock 反馈动画
-- [ ] 优化 card 入场和离场动画
-- [ ] 控制大 diff 页面背景动画成本
-- [ ] memo 化卡片和列表项
-- [ ] 必要时引入更强列表虚拟化策略
-
-### 验收标准
-
-- [ ] 动效增强体验而非拖慢界面
-- [ ] 主要列表与 review deck 在常见设备上流畅
-
-## 当前阶段不安排
+## 当前不安排
 
 以下内容仍不属于当前主路径：
 
 - provider routing / fallback
 - API 成本治理
-- 隐私策略治理
-- tree-sitter 原生模块落地
-- 桌面网页式 header/footer 方案
+- 传统 tabs / detail / files 页面体系回归
+- 高饱和年轻化视觉回退
 
-## 风险
+## 当前风险
 
 | 风险 | 影响 | 处理方式 |
 | --- | --- | --- |
-| 视觉过强导致代码可读性下降 | 审查效率下降 | 代码区保持高对比和低噪音 |
-| 去掉 header/footer 后用户迷路 | 认知负担上升 | 用 utility pills、action dock、sheet handle 建立清晰导航线索 |
-| 手势过多冲突 | 可用性下降 | 关键操作保留按钮入口，手势只做增强 |
-| 动效太多导致卡顿 | 体验变差 | 只动画 transform/opacity，重内容页面降级背景效果 |
-| UI 更新后数据链路断裂 | 功能回退 | UI 重构与真实 GitHub 流程并行验证 |
+| PR deck 手势误触 | 首页分诊效率下降 | 持续调手势阈值与 peek 触发方式 |
+| 大 diff 背面阅读成本高 | review 节奏被打断 | 控制背面渲染范围并优化 diff 组件 |
+| Moonshot 原生 schema 行为变化 | structured output 回退 | 依赖 health check 和 provider metadata 及时暴露 |
+| 文档再次落后于代码 | 后续决策混乱 | 每轮结构调整后同步刷新核心 docs |
 
 ## 关键里程碑
 
 | 里程碑 | 标志 |
 | --- | --- |
-| M1 | 新的 UI/UX 方向和空间规则写入文档 |
-| M2 | 无 header/footer 的 shell 可运行 |
-| M3 | PR feed 和 review deck 完成首轮重设计 |
-| M4 | code peek / comment / outcome sheet 跑通 |
-| M5 | 新 UI 下的 GitHub review 闭环完成 |
+| M1 | `review` 主流程收敛成 inbox deck + segment deck |
+| M2 | Moonshot China/Global + native structured outputs 跑通 |
+| M3 | 旧 PR detail 路径和依赖清理完成 |
+| M4 | 交互和性能开始围绕当前主路径打磨 |
