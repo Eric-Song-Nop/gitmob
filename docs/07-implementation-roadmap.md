@@ -9,22 +9,18 @@
 - 纯手势 PR deck
 - segment review deck
 - comment / submit overlay
-- Moonshot native structured outputs
+- Moonshot 原生结构化输出
+- 语义顺序导向的分段提示词
 
 当前路线图不再以“从零构建 UI reset”为目标，而是进入第二阶段：
 
-- 收口
-- 清理
 - 稳定化
-- 与当前实现对齐
+- 质量打磨
+- 文档与实现持续对齐
 
-## Phase 1: 主流程稳定化
+## 已完成
 
-### 目标
-
-把已经跑通的 `review` 主流程进一步稳定下来。
-
-### 任务
+### 主流程
 
 - [x] `login -> review -> settings` 路由收敛
 - [x] 多来源 PR inbox 聚合
@@ -33,72 +29,62 @@
 - [x] comment overlay
 - [x] submit overlay
 - [x] GitHub review 提交
-- [x] Moonshot native structured outputs
 
-### 验收标准
+### LLM 与 provider
 
-- [x] 首页和 review 已不依赖 tabs / top tabs
-- [x] 纯手势 PR deck 可工作
-- [x] Moonshot China/Global 切换可工作
+- [x] Moonshot China/Global 切换
+- [x] `Moonshot + kimi-k2.5` 原生结构化输出
+- [x] 健康检查与正式 provider 路径对齐
+- [x] 分段提示词改成“语义审查步骤 + 依赖优先排序”
+- [x] 分段质量信号接入调试链路
 
-## Phase 2: 仓库清理
+### 仓库清理
 
-### 目标
-
-删除旧 PR 详情时代遗留的孤立路径和依赖。
-
-### 任务
-
-- [x] 删除 `usePRFiles.ts`
 - [x] 删除旧 `PRHeader.tsx`、`PRListItem.tsx` 等零引用组件
+- [x] 删除 `usePRFiles.ts`
 - [x] 删除 bottom-sheet / material-top-tabs / pager-view 残留依赖
-- [x] 收拢文档到当前真实结构
-
-### 验收标准
-
-- [x] 零引用旧组件已删除
-- [x] 依赖树不再保留无效主路径依赖
 - [x] 文档不再描述旧 tabs / PR detail / files 页面架构
 
-## Phase 3: 交互与可靠性打磨
+## 下一阶段
 
-### 目标
+### 1. Segment 质量调优
 
-围绕当前已落地的主路径继续提升使用感和可靠性。
+目标：
 
-### 任务
+- 让 segment 更稳定地表现为单一代码意图
+- 让排序更稳定地接近依赖顺序
 
-- [ ] 优化 PR deck 手势阈值和反馈语义
+任务：
+
+- [ ] 用真实大 PR 观察质量信号分布
+- [ ] 继续迭代提示词的拆分信号与标题约束
+- [ ] 评估是否需要在 UI 中暴露部分 segment 调试信息
+
+### 2. Review UX 打磨
+
+目标：
+
+- 提升 segment 背面 diff 的阅读效率
+- 让 review 节奏更顺，而不是更炫
+
+任务：
+
 - [ ] 优化 segment 翻面和 diff 背面阅读体验
-- [ ] 强化 health check 错误信息和可诊断性
-- [ ] 增强 review 返回 inbox 时的状态恢复体验
-- [ ] 继续收窄老路径注释、无效代码和样式残留
+- [ ] 优化 segment 手势阈值和反馈语义
+- [ ] 优化 review 返回 inbox 时的状态恢复体验
 
-### 验收标准
+### 3. 性能与可靠性
 
-- [ ] PR 分诊和 segment review 的边界更清晰
-- [ ] health check 与正式 segmentation 表现一致
-- [ ] review 回到 inbox 时状态连贯
+目标：
 
-## Phase 4: 性能与质量保证
+- 确保大 PR 下仍然可用
+- 确保 provider 行为变化能被及时暴露
 
-### 目标
-
-确保大 PR 和连续使用时仍然可靠。
-
-### 任务
+任务：
 
 - [ ] 优化大 diff 下的 segment 背面渲染成本
-- [ ] 控制背景和卡片动画成本
 - [ ] 继续 memo 化重组件
-- [ ] 增强错误态和空状态一致性
-- [ ] 为关键业务层补测试覆盖
-
-### 验收标准
-
-- [ ] 大 PR 下 review deck 仍可用
-- [ ] 动效不明显拖慢界面
-- [ ] 覆盖校验、review event 推导和 Moonshot provider 路径有稳定测试
+- [ ] 为 coverage、review event 推导、Moonshot provider 路径补测试
 
 ## 当前不安排
 
@@ -108,21 +94,14 @@
 - API 成本治理
 - 传统 tabs / detail / files 页面体系回归
 - 高饱和年轻化视觉回退
+- 任意自定义 baseURL 的 provider 面板
 
 ## 当前风险
 
-| 风险 | 影响 | 处理方式 |
+| 风险 | 影响 | 当前处理方式 |
 | --- | --- | --- |
 | PR deck 手势误触 | 首页分诊效率下降 | 持续调手势阈值与 peek 触发方式 |
+| segment 过宽或多意图 | review 节奏被打断 | 依赖 quality signals + prompt 迭代 |
 | 大 diff 背面阅读成本高 | review 节奏被打断 | 控制背面渲染范围并优化 diff 组件 |
-| Moonshot 原生 schema 行为变化 | structured output 回退 | 依赖 health check 和 provider metadata 及时暴露 |
+| Moonshot 原生 schema 行为变化 | 结构化输出回退 | 依赖健康检查和 provider 元信息暴露 |
 | 文档再次落后于代码 | 后续决策混乱 | 每轮结构调整后同步刷新核心 docs |
-
-## 关键里程碑
-
-| 里程碑 | 标志 |
-| --- | --- |
-| M1 | `review` 主流程收敛成 inbox deck + segment deck |
-| M2 | Moonshot China/Global + native structured outputs 跑通 |
-| M3 | 旧 PR detail 路径和依赖清理完成 |
-| M4 | 交互和性能开始围绕当前主路径打磨 |

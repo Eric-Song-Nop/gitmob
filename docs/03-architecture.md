@@ -22,17 +22,15 @@ UI Layer
 - 首页是 `PR inbox deck`
 - PR 内是 `segment review deck`
 - PR 分诊靠卡片手势
-- 正式 review 靠 action dock + overlay
+- 正式 review 靠 segment 卡片手势 + overlays
 
 ### 当前 Shell
 
 ```text
 Safe Area Overlay
-  -> back pill / progress pill / repo pill / profile orb
+  -> back pill / progress pill / repo pill / profile orb / summary pill
 Main Canvas
   -> PR deck / segment deck
-Thumb Zone
-  -> action dock (review only)
 Transient Layers
   -> comment overlay / submit overlay
 ```
@@ -42,7 +40,8 @@ Transient Layers
 - 不使用常驻大 header
 - 不使用常驻底部 tab bar
 - 首页 PR deck 不保留按钮式 fallback
-- review 内不保留底部工具栏，主要动作由卡片手势和 overlays 承担
+- review 内不保留底部工具栏
+- `Submit` 不作为常驻底部动作，走顶部入口或流程收束
 
 ## 四层职责
 
@@ -74,9 +73,9 @@ Transient Layers
 负责：
 
 - unified diff 解析
-- hunk 到 segment 的映射输入构造
+- hunk 到 segment 的输入构造
 - coverage 校验
-- GitHub review event 推导
+- review event 推导
 
 ### Data / Provider Layer
 
@@ -86,7 +85,7 @@ Transient Layers
 - PR inbox 聚合
 - Vercel AI SDK provider
 - Moonshot region/baseURL 决策
-- health check
+- 健康检查
 - SecureStore / 本地持久化
 
 ## 当前核心数据流
@@ -106,7 +105,7 @@ usePRInbox()
   -> createReview()
 ```
 
-## 首页与 Review 的明确边界
+## 首页与 Review 的边界
 
 ### 首页 `PR deck`
 
@@ -139,6 +138,13 @@ usePRInbox()
 - 录入段评论和行评论
 - 聚合成 GitHub review payload
 
+交互：
+
+- 右滑 -> `Accept`
+- 左滑 -> `Concern`
+- 上滑 -> `Comment`
+- tap -> `front / back`
+
 ## Parser 与 LLM 的边界
 
 LLM 不是权威 diff 解释器。
@@ -154,6 +160,64 @@ LLM 不是权威 diff 解释器。
 - 评论行号不可靠
 - segment 无法证明完整覆盖 PR
 - GitHub review payload 不稳定
+
+## 当前 segment 架构
+
+### 输入
+
+模型看到的输入由以下信息构成：
+
+- `prTitle`
+- `prBody`
+- `filePath`
+- `hunkKey`
+- `header`
+- `additions`
+- `deletions`
+- `summaryText`
+
+### Prompt 目标
+
+当前 prompt 不再把模型当成“分组器”，而是当成“审查路线规划器”。
+
+要求模型：
+
+- 把 PR 组织成语义审查步骤
+- 每个 segment 尽量对应一个单一代码意图
+- 允许跨文件 segment，但必须服务同一意图
+- 结果按依赖顺序输出，而不是按文件名或原始 diff 顺序输出
+
+### 默认顺序规则
+
+默认顺序目标是：
+
+1. 入口与上游触发点
+2. 协调层 / 状态编排
+3. 核心逻辑
+4. 数据 / 持久化 / 集成
+5. 支撑性清理 / 样式 / 重命名
+
+如果依赖关系不清晰，则退回到“最利于审查者建立心智模型”的顺序。
+
+### 输出目标
+
+模型输出的 `SegmentCardModel` 字段语义：
+
+- `title`: 这组改动在系统里做了什么
+- `summary`: 这组改动改变了什么行为或职责
+- `rationale`: 为什么这些 hunk 属于一起，以及为什么它排在这里
+- `risk`: 这组改动作为一个整体的 review 风险
+- `refs`: 该 segment 覆盖到的 hunk 引用
+
+### 质量信号
+
+除了 coverage 硬校验，当前还会记录非阻断质量信号：
+
+- `possibly-too-broad`
+- `possibly-multi-purpose`
+- `weak-title`
+
+这些信号当前只用于调试 prompt 质量，不改变 UI 和 review 流程。
 
 ## Vercel AI SDK 边界
 
@@ -179,7 +243,7 @@ Vercel AI SDK 只属于 provider 适配层。
 Moonshot 在当前架构里有两层：
 
 1. 官方 provider 基础能力
-2. 本地 wrapper 补足 `kimi-k2.5` 的 native structured outputs
+2. 本地 wrapper 补足 `kimi-k2.5` 的原生结构化输出
 
 规则：
 
@@ -187,18 +251,16 @@ Moonshot 在当前架构里有两层：
 - `thinking: disabled`
 - `temperature: 0.6`
 - 支持 `China / Global` 区域切换
-- health check 与正式 segmentation 复用同一条路径
+- 健康检查与正式分段复用同一条路径
 
 ## 当前状态模型
-
-### Review 页面状态
 
 ```ts
 type ReviewMode = 'pr-deck' | 'segment-deck' | 'submit-overlay';
 type InboxMode = 'front' | 'peek';
 ```
 
-### 关键本地状态
+关键本地状态：
 
 - 当前 PR index
 - 当前 segment index

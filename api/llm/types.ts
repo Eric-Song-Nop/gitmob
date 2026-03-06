@@ -28,6 +28,17 @@ export interface SegmentCardModel {
   }>;
 }
 
+export type SegmentQualityFlag =
+  | 'possibly-too-broad'
+  | 'possibly-multi-purpose'
+  | 'weak-title';
+
+export interface SegmentQualitySignal {
+  segmentId: string;
+  flags: SegmentQualityFlag[];
+}
+
 export interface SegmentationResult {
   segments: SegmentCardModel[];
+  qualitySignals: SegmentQualitySignal[];
 }

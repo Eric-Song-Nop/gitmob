@@ -153,6 +153,9 @@ export default function ReviewScreen() {
         detailQuery.data?.body
       );
       const result = await segmentPullRequest(input, llmConfig);
+      if (result.qualitySignals.length) {
+        console.warn('[segmentation] quality signals', result.qualitySignals);
+      }
       validateCoverage(result.segments, flatHunks);
       return result.segments;
     },
