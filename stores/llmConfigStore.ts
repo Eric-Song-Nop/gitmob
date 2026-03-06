@@ -16,7 +16,7 @@ const storage = createJSONStorage<LLMConfigState>(() => {
 });
 
 export interface LLMConfig {
-  provider: 'openai' | 'anthropic';
+  provider: 'openai' | 'anthropic' | 'moonshot';
   model: string;
   apiKey: string;
 }

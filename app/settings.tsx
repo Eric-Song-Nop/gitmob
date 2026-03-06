@@ -12,6 +12,12 @@ import { useLLMConfigStore } from '@/stores/llmConfigStore';
 import { usePreferencesStore } from '@/stores/preferencesStore';
 import { AmbientCanvas } from '@/components/review/AmbientCanvas';
 
+const DEFAULT_MODELS = {
+  openai: 'gpt-4.1-mini',
+  anthropic: 'claude-3-7-sonnet-latest',
+  moonshot: 'kimi-k2.5',
+} as const;
+
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuthStore();
@@ -100,16 +106,25 @@ export default function SettingsScreen() {
               <Button
                 variant={config.provider === 'openai' ? 'default' : 'outline'}
                 className="flex-1 rounded-2xl"
-                onPress={() => setConfig({ provider: 'openai' })}
+                onPress={() => setConfig({ provider: 'openai', model: DEFAULT_MODELS.openai })}
               >
                 <Text>OpenAI</Text>
               </Button>
               <Button
                 variant={config.provider === 'anthropic' ? 'default' : 'outline'}
                 className="flex-1 rounded-2xl"
-                onPress={() => setConfig({ provider: 'anthropic' })}
+                onPress={() => setConfig({ provider: 'anthropic', model: DEFAULT_MODELS.anthropic })}
               >
                 <Text>Anthropic</Text>
+              </Button>
+            </View>
+            <View className="mt-3 flex-row gap-3">
+              <Button
+                variant={config.provider === 'moonshot' ? 'default' : 'outline'}
+                className="flex-1 rounded-2xl"
+                onPress={() => setConfig({ provider: 'moonshot', model: DEFAULT_MODELS.moonshot })}
+              >
+                <Text>Moonshot</Text>
               </Button>
             </View>
 
@@ -117,7 +132,7 @@ export default function SettingsScreen() {
             <Input
               value={config.model}
               onChangeText={(value) => setConfig({ model: value })}
-              placeholder="gpt-4.1-mini"
+              placeholder={DEFAULT_MODELS[config.provider]}
               className="mt-3"
               autoCapitalize="none"
               autoCorrect={false}
