@@ -65,7 +65,6 @@
 |------|------|---------|---------|
 | react-native-gesture-handler | 手势处理 | Pinch-to-zoom、滑动手势 | RN 内置手势（性能差） |
 | react-native-reanimated | 动画引擎 | UI 线程动画，不阻塞 JS | Animated API（性能差） |
-| @gorhom/bottom-sheet | 底部面板 | 命令中心 UI | 自建（工作量大） |
 
 ### 字体
 
@@ -94,7 +93,6 @@
     "nativewind": "~4.1.0",
     "react-native-reanimated": "~3.16.0",
     "react-native-gesture-handler": "~2.20.0",
-    "@gorhom/bottom-sheet": "~5.0.0",
     "@tanstack/react-query": "~5.60.0",
     "zustand": "~5.0.0",
     "octokit": "~4.0.0",
