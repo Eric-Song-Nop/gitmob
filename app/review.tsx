@@ -4,7 +4,9 @@ import { Redirect, router, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
+import * as Clipboard from 'expo-clipboard';
 import { BlurView } from 'expo-blur';
+import * as Linking from 'expo-linking';
 import { ArrowLeftIcon } from 'lucide-react-native';
 
 import { usePRInbox } from '@/api/queries/usePRInbox';
@@ -12,7 +14,8 @@ import { usePullRequest } from '@/api/queries/usePullRequest';
 import { usePRDiff } from '@/api/queries/usePRDiff';
 import { usePRComments } from '@/api/queries/usePRComments';
 import { useCreateReview, type GitHubDraftComment } from '@/api/mutations/useCreateReview';
-import type { PullRequest } from '@/api/types';
+import { useMergePullRequest } from '@/api/mutations/useMergePullRequest';
+import type { MergeMethod, PullRequest, ReviewMode as CapabilityReviewMode } from '@/api/types';
 import type { SegmentCardModel } from '@/api/llm/types';
 import { segmentPullRequest } from '@/api/llm/segmentPullRequest';
 import { AmbientCanvas } from '@/components/review/AmbientCanvas';
@@ -40,6 +43,7 @@ const SETTINGS_ROUTE = '/settings' as Href;
 
 type ReviewMode = 'pr-deck' | 'segment-deck' | 'submit-overlay';
 type InboxMode = 'front' | 'peek';
+type SubmitMode = CapabilityReviewMode;
 
 interface CommentOverlayState {
   open: boolean;
@@ -55,6 +59,46 @@ function buildReviewBody(segmentNotes: Record<string, string>) {
     .map(([segmentId, body]) => `- ${segmentId}: ${body.trim()}`);
 
   return notes.length ? `Segment notes\n${notes.join('\n')}` : '';
+}
+
+function getSubmitMode(mode?: CapabilityReviewMode): SubmitMode {
+  if (mode === 'self-merge') return 'self-merge';
+  if (mode === 'read-only') return 'read-only';
+  return 'full-review';
+}
+
+function formatReadOnlyReason(reason?: string) {
+  switch (reason) {
+    case 'no-review-permission':
+      return "You can still review this change path, but you can't submit a formal GitHub review.";
+    case 'draft':
+      return 'This pull request is still draft-only for formal review actions.';
+    default:
+      return 'Formal review submission is not available for this pull request.';
+  }
+}
+
+function formatMergeBlockedReasons(reasons: string[]) {
+  if (!reasons.length) return '';
+
+  const labels = reasons.map((reason) => {
+    switch (reason) {
+      case 'no-merge-permission':
+        return 'missing permission';
+      case 'conflicts':
+        return 'conflicts';
+      case 'draft':
+        return 'draft state';
+      case 'checks-pending':
+        return 'pending checks';
+      case 'checks-failed':
+        return 'failed checks';
+      default:
+        return 'unknown state';
+    }
+  });
+
+  return `Merge is blocked by ${labels.join(', ')}.`;
 }
 
 function EmptyDeck({
@@ -114,10 +158,11 @@ export default function ReviewScreen() {
   const pullNumber = effectivePR?.number ?? 0;
 
   const shouldLoadDetail = !!effectivePR && (mode !== 'pr-deck' || inboxMode === 'peek');
-  const detailQuery = usePullRequest(owner, repo, pullNumber, shouldLoadDetail);
+  const detailQuery = usePullRequest(owner, repo, pullNumber, user?.login, shouldLoadDetail);
   const diffQuery = usePRDiff(owner, repo, pullNumber, mode !== 'pr-deck');
   const commentsQuery = usePRComments(owner, repo, pullNumber, mode !== 'pr-deck');
   const createReview = useCreateReview();
+  const mergePullRequest = useMergePullRequest();
 
   useEffect(() => {
     if (currentPRIndex >= inbox.items.length) {
@@ -176,6 +221,9 @@ export default function ReviewScreen() {
   const currentThreads = commentsQuery.data ?? [];
   const reviewBody = useMemo(() => buildReviewBody(segmentNotes), [segmentNotes]);
   const reviewEvent = useMemo(() => deriveReviewEvent(Object.values(decisions)), [decisions]);
+  const submitMode = getSubmitMode(detailQuery.data?.capabilities.review.mode);
+  const allowedMergeMethods = detailQuery.data?.capabilities.merge.allowedMethods ?? ['squash'];
+  const [selectedMergeMethod, setSelectedMergeMethod] = useState<MergeMethod>('squash');
   const stats = useMemo(
     () => ({
       accepted: Object.values(decisions).filter((entry) => entry.status === 'accepted').length,
@@ -185,6 +233,24 @@ export default function ReviewScreen() {
     }),
     [decisions]
   );
+  const canSubmitReview = useMemo(() => {
+    const capabilities = detailQuery.data?.capabilities.review;
+    if (!capabilities) return true;
+    if (reviewEvent === 'APPROVE') return capabilities.canSubmitApprove;
+    if (reviewEvent === 'REQUEST_CHANGES') return capabilities.canSubmitRequestChanges;
+    return capabilities.canSubmitComment;
+  }, [detailQuery.data?.capabilities.review, reviewEvent]);
+
+  useEffect(() => {
+    if (!allowedMergeMethods.length) return;
+    setSelectedMergeMethod((current) =>
+      allowedMergeMethods.includes(current)
+        ? current
+        : allowedMergeMethods.includes('squash')
+          ? 'squash'
+          : allowedMergeMethods[0]
+    );
+  }, [allowedMergeMethods]);
 
   if (isLoading) {
     return (
@@ -343,6 +409,58 @@ export default function ReviewScreen() {
     }
   };
 
+  const postComment = async (body: string) => {
+    if (!detailQuery.data) return;
+
+    try {
+      await createReview.mutateAsync({
+        owner: detailQuery.data.repository.owner.login,
+        repo: detailQuery.data.repository.name,
+        pullNumber: detailQuery.data.number,
+        event: 'COMMENT',
+        body,
+        comments: inlineComments,
+        commitId: detailQuery.data.headRefOid,
+      });
+
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      closeReview();
+      setCurrentPRIndex((index) => index + 1);
+    } catch (error) {
+      Alert.alert('Comment failed', error instanceof Error ? error.message : 'Unknown error');
+    }
+  };
+
+  const mergePR = async (body: string) => {
+    if (!detailQuery.data) return;
+
+    try {
+      await mergePullRequest.mutateAsync({
+        owner: detailQuery.data.repository.owner.login,
+        repo: detailQuery.data.repository.name,
+        pullNumber: detailQuery.data.number,
+        method: selectedMergeMethod,
+        commitMessage: body.trim() || undefined,
+      });
+
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      closeReview();
+      setCurrentPRIndex((index) => index + 1);
+    } catch (error) {
+      Alert.alert('Merge failed', error instanceof Error ? error.message : 'Unknown error');
+    }
+  };
+
+  const copyNotes = async (body: string) => {
+    await Clipboard.setStringAsync(body || reviewBody || 'No notes recorded.');
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const openOnGitHub = async () => {
+    if (!detailQuery.data?.url) return;
+    await Linking.openURL(detailQuery.data.url);
+  };
+
   const topOffset = insets.top + 12;
   const visibleCount = inbox.items.length;
   const progressIndex = Math.min(currentPRIndex + 1, Math.max(visibleCount, 1));
@@ -488,12 +606,40 @@ export default function ReviewScreen() {
 
       <SubmitReviewOverlay
         open={mode === 'submit-overlay'}
+        mode={submitMode}
         event={reviewEvent}
         stats={stats}
         initialBody={reviewBody}
-        isSubmitting={createReview.isPending}
+        reasonMessage={
+          submitMode === 'read-only'
+            ? formatReadOnlyReason(detailQuery.data?.capabilities.review.reason)
+            : submitMode === 'full-review' && !canSubmitReview
+              ? 'Formal review submission is limited for this pull request right now.'
+            : submitMode === 'self-merge'
+              ? 'This is your PR. Use segment review to sanity-check the change before merging.'
+              : undefined
+        }
+        mergeBlockedMessage={formatMergeBlockedReasons(detailQuery.data?.capabilities.merge.blockedReasons ?? [])}
+        mergeableLabel={
+          detailQuery.data?.capabilities.merge.canMerge
+            ? 'Mergeable'
+            : detailQuery.data?.capabilities.merge.mergeable === 'CONFLICTING'
+              ? 'Conflicts'
+              : 'Blocked'
+        }
+        allowedMethods={allowedMergeMethods}
+        selectedMethod={selectedMergeMethod}
+        canMerge={detailQuery.data?.capabilities.merge.canMerge ?? false}
+        canSubmitReview={canSubmitReview}
+        isSubmittingReview={createReview.isPending}
+        isSubmittingMerge={mergePullRequest.isPending}
         onClose={() => setMode('segment-deck')}
-        onSubmit={submitReview}
+        onSubmitReview={submitReview}
+        onMerge={mergePR}
+        onPostComment={postComment}
+        onCopyNotes={copyNotes}
+        onOpenGitHub={openOnGitHub}
+        onSelectMethod={setSelectedMergeMethod}
       />
     </View>
   );

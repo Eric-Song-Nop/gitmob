@@ -20,6 +20,10 @@ export interface PullRequest {
     nameWithOwner: string;
     owner: { login: string };
     name: string;
+    viewerPermission?: RepositoryPermission;
+    mergeCommitAllowed?: boolean;
+    squashMergeAllowed?: boolean;
+    rebaseMergeAllowed?: boolean;
   };
   labels: Array<{ name: string; color: string }>;
   reviewRequests: Array<{ login?: string; name?: string }>;
@@ -29,6 +33,36 @@ export interface PullRequest {
     author: GitHubUser;
     submittedAt: string;
   }>;
+  capabilities?: PRCapabilities;
+}
+
+export type RepositoryPermission = 'ADMIN' | 'MAINTAIN' | 'WRITE' | 'TRIAGE' | 'READ' | 'NONE';
+
+export type ReviewMode = 'full-review' | 'read-only' | 'self-merge';
+
+export interface ReviewCapabilities {
+  mode: ReviewMode;
+  canSubmitApprove: boolean;
+  canSubmitRequestChanges: boolean;
+  canSubmitComment: boolean;
+  reason?: 'no-review-permission' | 'authored-pr' | 'draft' | 'unknown';
+}
+
+export type MergeMethod = 'merge' | 'squash' | 'rebase';
+
+export interface MergeCapabilities {
+  canMerge: boolean;
+  mergeable: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN';
+  allowedMethods: MergeMethod[];
+  blockedReasons: Array<
+    'no-merge-permission' | 'conflicts' | 'draft' | 'checks-pending' | 'checks-failed' | 'unknown'
+  >;
+}
+
+export interface PRCapabilities {
+  isAuthoredByViewer: boolean;
+  review: ReviewCapabilities;
+  merge: MergeCapabilities;
 }
 
 export type PRSource = 'review-requested' | 'assigned' | 'authored';
@@ -92,6 +126,7 @@ export interface PullRequestDetail extends PullRequest {
   reviewThreads: ReviewThread[];
   totalCommentsCount: number;
   commits: number;
+  capabilities: PRCapabilities;
 }
 
 export interface PendingComment {

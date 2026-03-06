@@ -22,6 +22,28 @@ function buildInboxContext(item: InboxPRCardModel) {
   return `In your inbox because this PR is ${labels.join(' + ')}.`;
 }
 
+function buildModeBadges(item: InboxPRCardModel) {
+  const badges: Array<{ label: string; variant: 'secondary' | 'outline' | 'destructive' }> = [];
+  const capabilities = item.pullRequest.capabilities;
+
+  if (capabilities?.isAuthoredByViewer || item.sources.includes('authored')) {
+    badges.push({ label: 'Authored by you', variant: 'secondary' });
+  } else if (capabilities?.review.mode === 'read-only') {
+    badges.push({ label: 'Read-only', variant: 'outline' });
+  }
+
+  if (capabilities?.isAuthoredByViewer || item.sources.includes('authored')) {
+    if (item.pullRequest.mergeable === 'MERGEABLE') {
+      badges.push({ label: 'Mergeable', variant: 'outline' });
+    }
+    if (item.pullRequest.mergeable === 'CONFLICTING') {
+      badges.push({ label: 'Conflicts', variant: 'destructive' });
+    }
+  }
+
+  return badges.slice(0, 2);
+}
+
 function ReviewSummary({ detail }: { detail?: PullRequestDetail }) {
   const approved = detail?.reviews.filter((review) => review.state === 'APPROVED').length ?? 0;
   const changesRequested =
@@ -63,6 +85,7 @@ export function PRReviewCard({ item, mode, detail, detailPending }: PRReviewCard
   const pr = item.pullRequest;
   const bodyPreview = (detail?.body || pr.body || '').trim();
   const inboxContext = buildInboxContext(item);
+  const modeBadges = buildModeBadges(item);
 
   if (mode === 'peek') {
     return (
@@ -83,6 +106,11 @@ export function PRReviewCard({ item, mode, detail, detailPending }: PRReviewCard
           <>
             <View className="mt-4 flex-row flex-wrap gap-2">
               <CISummary detail={detail} />
+              {modeBadges.map((badge) => (
+                <Badge key={badge.label} variant={badge.variant}>
+                  <Text className="text-xs">{badge.label}</Text>
+                </Badge>
+              ))}
               {item.sources.map((source) => (
                 <Badge key={source} variant="outline">
                   <Text className="text-xs">{getSourceLabel(source)}</Text>
@@ -125,6 +153,11 @@ export function PRReviewCard({ item, mode, detail, detailPending }: PRReviewCard
   return (
     <View className="flex-1 rounded-[30px] border border-border bg-card px-5 py-6 shadow-sm shadow-black/10">
       <View className="flex-row flex-wrap gap-2">
+        {modeBadges.map((badge) => (
+          <Badge key={badge.label} variant={badge.variant}>
+            <Text className="text-xs">{badge.label}</Text>
+          </Badge>
+        ))}
         {item.sources.map((source) => (
           <Badge key={source} variant={source === item.primarySource ? 'secondary' : 'outline'}>
             <Text className="text-xs">{getSourceLabel(source)}</Text>
