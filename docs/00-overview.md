@@ -1,178 +1,184 @@
 # GitMob - 项目总览
 
-## 产品定位
+## 产品目标
 
 GitMob 是一款面向移动端的 GitHub Pull Request 审查应用。
 
-它不是把桌面端的 PR 页面压缩到手机里，而是把代码审查重构成一种更像内容流消费的体验：
+它的核心目标不是把桌面 PR 页面压缩到手机里，而是把大 PR 的 review 过程重构成一条更适合移动设备的语义审查链路：
 
-- 全屏
-- 高节奏
-- 低导航负担
-- 以 segment 为单位快速判断
-- 通过卡片、动效、浮层和手势驱动审查流程
+- 首页先做 PR 分诊
+- 进入 PR 后不直接看整页 diff
+- 先由 LLM 按代码语义组织出审查步骤
+- 再由人按依赖顺序快速 review
+- 最后统一提交 GitHub review
 
-当前版本的产品方向可以概括为：
+项目服务的核心场景是：
 
-> **像 Tinder 一样有吸引力，像代码审查工具一样可靠。**
+> 在 vibe-coding 时代，PR 越来越大、跨文件跨度越来越强，需要先按代码语义组织 change，再让人高效判断。
 
-## 新的 UI/UX 北极星
+## 当前产品形态
+
+当前主流程已经收敛为三个真实页面：
+
+- `login`
+- `review`
+- `settings`
+
+其中 `review` 页面内部承担三种状态：
+
+- `pr-deck`
+- `segment-deck`
+- `submit-overlay`
+
+## 当前体验模型
+
+| 阶段 | 用户看到的对象 | 系统职责 |
+| --- | --- | --- |
+| 登录 | `login` | GitHub Device Flow 登录 |
+| PR 分诊 | `PR deck` | 聚合 `review-requested + assigned + authored` |
+| PR 预览 | `PR card peek` | 懒加载 PR body、review pulse、CI summary |
+| 进入 review | `segment deck` | 拉取 detail + diff，解析 hunk，调用 LLM 分段 |
+| 段内审查 | `segment front/back` | 正面看结论与理由，背面看 diff 证据 |
+| 评论 | `CommentOverlay` | 录入段评论或行评论 |
+| 提交前确认 | `SubmitReviewOverlay` | 汇总本地判断并推导 GitHub review event |
+| 最终提交 | GitHub review | 提交 `APPROVE` / `REQUEST_CHANGES` / `COMMENT` |
+
+## 当前 UI / UX 北极星
 
 ### 关键词
 
-- Tinder 感
-- 青春活力
 - 全屏卡片
-- 轻导航 chrome
-- 强动效反馈
-- 柔和但不幼稚
-- 代码内容始终是主角
+- 轻 chrome
+- 纯手势 PR 分诊
+- 语义审查步骤
+- Gruvbox 视觉基底
+- 代码内容优先
+- 单手可操作
 
 ### 明确反对的方向
 
 - 传统企业后台感
 - 粗重 header
 - 常驻 footer tab bar
-- 大量边框和信息块堆叠
-- 桌面网页布局的移动端压缩版
+- GitHub 桌面页面的移动压缩版
+- 靠高饱和青春色制造吸引力
 
-## 核心设计原则
+## 当前审查模型
 
-1. **No Header, No Footer First**
-   核心审查流程默认不显示持久 header 和 footer。导航、状态和操作通过浮层、胶囊按钮、底部 action dock、peek sheet 承担。
+### 首页 PR 卡片
 
-2. **Card-First Review**
-   用户看到的不是“页面 + 模块”，而是“一张又一张审查卡片”。每个 segment 都应该像一张可以判断、可以收藏、可以评论的对象。
+首页 PR 卡片只负责分诊，不负责正式 review。
 
-3. **Chrome-Light, Content-Heavy**
-   顶部和底部的系统 chrome 只保留必要信息，且尽量融入安全区。屏幕空间优先给：
-   - PR 预览卡
-   - segment 内容
-   - diff
-   - 评论输入
+支持动作：
 
-4. **Youthful Energy Without Noise**
-   视觉上要有鲜明个性、节奏和张力，但不能为了活力牺牲信息可读性。代码审查不是游戏化皮肤，而是高密度内容上的流畅感和决策感。
+- tap：`front <-> peek`
+- swipe right：`Open Review`
+- swipe left：`Save For Later`
 
-5. **One-Hand Friendly**
-   主要操作必须在拇指热区完成，尤其是：
-   - 下一段
-   - 标记通过 / 有疑问
-   - 添加评论
-   - 打开详情
-   - 提交 review
+首页不支持：
 
-## 视觉方向
+- `Accept`
+- `Concern`
+- `Comment`
+- `Submit Review`
 
-详细方案见 [08-ui-ux-direction.md](/Users/eric/Documents/Sources/acp/gitmob/docs/08-ui-ux-direction.md)。
+### Segment 卡片
 
-当前确定的方向是：
+进入 PR 后，segment 卡片才承担正式审查语义。
 
-- 基调：`Sunset Pop x Code Glass`
-- 氛围：温暖、流动、轻反光、年轻、干净
-- 主色：珊瑚橙、番茄红、青绿色、奶油白、墨黑
-- 视觉重心：大卡片、柔和高光、弧角、叠层、模糊浮层、节奏明确的动效
+当前 review 语义：
 
-## 核心体验
+- 右滑：`Accept`
+- 左滑：`Concern`
+- 上滑：`Comment`
+- 顶部 `Summary`：打开提交汇总
+- 到最后一张 segment 后自动进入 `SubmitReviewOverlay`
 
-| 阶段 | 用户看到的对象 | 系统职责 |
-| --- | --- | --- |
-| PR 选择 | 全屏 PR feed | 展示值得现在处理的 PR 卡片 |
-| 预处理 | 进入 review 模式 | 拉取 unified diff，解析成文件和 hunk |
-| 智能分段 | review deck | 使用 Vercel AI SDK 调用模型，将 hunk 组织为 segment |
-| 段内审查 | segment card | 展示摘要、风险、涉及文件和代码入口 |
-| 代码查看 | code peek sheet | 通过底部浮层或全屏展开查看精确 diff |
-| 评论编辑 | comment composer sheet | 选择 hunk/line，编辑 review comment 草稿 |
-| Review 汇总 | outcome sheet | 将段级判断转换为 PR 级 review event |
-| 最终提交 | GitHub review | 提交 `APPROVE` / `REQUEST_CHANGES` / `COMMENT` |
+### PR 级提交语义
 
-## 新的导航模型
-
-GitMob 的核心流不再依赖传统 header/footer。
-
-### 全局导航规则
-
-- 不使用常驻顶部标题栏作为主要信息容器
-- 不使用常驻底部 tab bar 作为主要切换方式
-- 使用浮动 avatar orb、progress pill、sheet handle、action dock 替代传统导航框架
-
-### 核心流内的 chrome 组成
-
-- 顶部安全区内：
-  - 返回胶囊
-  - PR 进度 pill
-  - 可选仓库/状态 badge
-- 底部拇指区：
-  - action dock
-  - 评论入口
-  - summary 入口
-- 辅助信息：
-  - 通过上拉或点按展开的 sheet 呈现
-
-## 审查模型
-
-GitMob 中的卡片动作不直接等于 GitHub API 事件。
-
-| 卡片层动作 | 本地语义 | 对最终 review 的影响 |
-| --- | --- | --- |
-| Glow Right | `accepted` | 增加通过段数 |
-| Pull Left | `hasConcern` | 如为阻断性问题，可升级为 `REQUEST_CHANGES` |
-| Lift Up | `commented` | 追加 review comments |
-| Skip | `skipped` | 不直接影响最终 event |
-
-最终 review event 的推导规则不变：
+segment 层的本地判断最终会被聚合成 GitHub PR 级 review event：
 
 - 存在 blocking concern -> `REQUEST_CHANGES`
-- 否则存在明确通过结论 -> `APPROVE`
+- 否则存在通过判断 -> `APPROVE`
 - 否则 -> `COMMENT`
 
-## MVP 范围
+## 当前 segment 设计
 
-### 包含
+当前 segment 不是按文件切，也不是按原始 diff 顺序切。
 
-- GitHub Device Flow 登录
-- PR feed
-- PR 概要页
-- unified diff 拉取与解析
-- 基于 Vercel AI SDK 的 segment 生成
-- 全屏 segment review deck
-- code peek sheet
-- comment composer sheet
-- Review outcome sheet
-- GitHub review comments 提交
-- GitHub review event 提交
+实际流程：
 
-### 不包含
+1. 先把 unified diff 解析成 file/hunk 结构
+2. 再把 hunk 压成给 LLM 的 segmentation input
+3. LLM 按代码语义把 hunk 组织成 review steps
+4. 输出顺序默认遵循依赖顺序：
+   - 入口
+   - 协调层
+   - 核心逻辑
+   - 数据/持久化/集成
+   - 支撑性清理
+5. 最后做 coverage 校验，确保每个 hunk 恰好出现一次
 
-- 常驻底部 tab bar 驱动的主体验
-- 传统大 header 信息区
-- 仓库浏览
-- issue 管理
-- 通知中心细化体验
-- CI 日志详情
-- 本地离线队列
-- 网关路由、成本控制、供应商回退
-- Web 专用审查体验优化
+当前目标不是形式化证明“每个 segment 只做一件事”，而是尽量让每个 segment 对应一个清晰、可命名的代码意图。
 
-## 成功标准
+## 当前 LLM 路径
 
-### 产品标准
+- provider 层统一在 `api/llm/providers.ts`
+- 支持 OpenAI / Anthropic / Moonshot
+- Moonshot 支持 `China / Global` 区域切换
+- `Moonshot + kimi-k2.5` 使用原生 `json_schema` 结构化输出
+- `kimi-k2.5` 固定使用：
+  - `thinking: disabled`
+  - `temperature: 0.6`
+- 健康检查与正式分段走同一条模型提供方 / model 路径
 
-- 用户在首屏就能感知到“这不是 GitHub Mobile 的翻版”
-- 从 PR feed 进入 review 的过渡足够丝滑和有节奏
-- 审查时 header/footer 不再明显挤压内容空间
-- 单手操作时主要动作都在底部热区完成
+## 当前质量约束
 
-### 质量标准
+### 硬约束
 
 - 每个 diff hunk 必须且只能出现在一个 segment 中
 - segment coverage 必须达到 100%
 - 评论必须准确落在 GitHub diff 上
-- 动效只增强反馈，不降低信息可读性
+- GitHub review event 必须由本地决策稳定推导
+
+### 软约束
+
+segment 生成后会记录非阻断质量信号，用于 prompt 调试：
+
+- `possibly-too-broad`
+- `possibly-multi-purpose`
+- `weak-title`
+
+这些信号当前只用于调试，不阻断 review 流程。
+
+## MVP 当前包含
+
+- GitHub Device Flow 登录
+- 多来源 PR inbox
+- 纯手势 PR deck
+- unified diff 拉取与解析
+- 基于 Vercel AI SDK 的 segment 生成
+- 语义分段双面卡片
+- 行评论与段评论 overlay
+- review 提交 overlay
+- GitHub review comments 提交
+- GitHub review event 提交
+- LLM 健康检查
+- Moonshot China / Global 切换
+
+## 当前不包含
+
+- 仓库浏览
+- issue 管理
+- 通知中心主流程
+- provider routing / fallback
+- 成本治理
+- 桌面化 PR detail / files 页面
+- Web 专用审查体验优化
 
 ## 重点文档
 
+- [01-tech-stack.md](/Users/eric/Documents/Sources/acp/gitmob/docs/01-tech-stack.md)
 - [03-architecture.md](/Users/eric/Documents/Sources/acp/gitmob/docs/03-architecture.md)
-- [05-components.md](/Users/eric/Documents/Sources/acp/gitmob/docs/05-components.md)
-- [07-implementation-roadmap.md](/Users/eric/Documents/Sources/acp/gitmob/docs/07-implementation-roadmap.md)
+- [06-api-layer.md](/Users/eric/Documents/Sources/acp/gitmob/docs/06-api-layer.md)
 - [08-ui-ux-direction.md](/Users/eric/Documents/Sources/acp/gitmob/docs/08-ui-ux-direction.md)

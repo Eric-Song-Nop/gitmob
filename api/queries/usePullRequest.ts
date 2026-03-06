@@ -1,6 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { getOctokit } from '../client';
-import type { PullRequestDetail, GitHubUser, StatusCheck, ReviewThread, ReviewComment } from '../types';
+import type {
+  PullRequestDetail,
+  GitHubUser,
+  StatusCheck,
+  ReviewThread,
+  ReviewComment,
+  RepositoryPermission,
+} from '../types';
+import { derivePRCapabilities } from '@/services/review/derivePRCapabilities';
 
 const PR_DETAIL_QUERY = `
   query($owner: String!, $repo: String!, $number: Int!) {
@@ -31,6 +39,10 @@ const PR_DETAIL_QUERY = `
           nameWithOwner
           owner { login }
           name
+          viewerPermission
+          mergeCommitAllowed
+          squashMergeAllowed
+          rebaseMergeAllowed
         }
         labels(first: 10) {
           nodes { name color }
@@ -130,6 +142,10 @@ interface RawPRResponse {
         nameWithOwner: string;
         owner: { login: string };
         name: string;
+        viewerPermission?: RepositoryPermission;
+        mergeCommitAllowed?: boolean;
+        squashMergeAllowed?: boolean;
+        rebaseMergeAllowed?: boolean;
       };
       labels: { nodes: Array<{ name: string; color: string }> };
       reviewRequests: {
@@ -194,7 +210,7 @@ interface RawPRResponse {
   };
 }
 
-function transformResponse(raw: RawPRResponse): PullRequestDetail {
+function transformResponse(raw: RawPRResponse, viewerLogin?: string | null): PullRequestDetail {
   const pr = raw.repository.pullRequest;
   const lastCommit = pr.lastCommit.nodes[0]?.commit;
   const rawRollup = lastCommit?.statusCheckRollup;
@@ -270,6 +286,21 @@ function transformResponse(raw: RawPRResponse): PullRequestDetail {
     reviewThreads,
     totalCommentsCount: pr.comments.totalCount,
     commits: pr.commitsCount.totalCount,
+    capabilities: derivePRCapabilities(
+      {
+        ...pr,
+        repository: pr.repository,
+        labels: pr.labels.nodes,
+        reviewRequests: pr.reviewRequests.nodes.map((n) => ({
+          login: n.requestedReviewer.login,
+          name: n.requestedReviewer.name,
+          avatarUrl: n.requestedReviewer.avatarUrl,
+        })),
+        reviews: pr.reviews.nodes,
+      },
+      viewerLogin,
+      statusCheckRollup
+    ),
   };
 }
 
@@ -290,9 +321,15 @@ function mapCheckConclusion(conclusion?: string | null): StatusCheck['state'] {
   }
 }
 
-export function usePullRequest(owner: string, repo: string, number: number, enabled = true) {
+export function usePullRequest(
+  owner: string,
+  repo: string,
+  number: number,
+  viewerLogin?: string | null,
+  enabled = true
+) {
   return useQuery<PullRequestDetail>({
-    queryKey: ['pr', owner, repo, number],
+    queryKey: ['pr', owner, repo, number, viewerLogin],
     queryFn: async () => {
       const octokit = getOctokit();
       const result = await octokit.graphql<RawPRResponse>(PR_DETAIL_QUERY, {
@@ -300,7 +337,7 @@ export function usePullRequest(owner: string, repo: string, number: number, enab
         repo,
         number,
       });
-      return transformResponse(result);
+      return transformResponse(result, viewerLogin);
     },
     staleTime: 1000 * 60 * 3,
     enabled: enabled && !!owner && !!repo && !!number,

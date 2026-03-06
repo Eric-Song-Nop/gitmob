@@ -1,6 +1,8 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { getOctokit } from '../client';
 import type { PullRequest } from '../types';
+import { useAuthStore } from '@/stores/authStore';
+import { derivePRCapabilities } from '@/services/review/derivePRCapabilities';
 
 const PR_LIST_QUERY = `
   query($searchQuery: String!, $first: Int!, $after: String) {
@@ -35,6 +37,10 @@ const PR_LIST_QUERY = `
             nameWithOwner
             owner { login }
             name
+            viewerPermission
+            mergeCommitAllowed
+            squashMergeAllowed
+            rebaseMergeAllowed
           }
           labels(first: 5) {
             nodes { name color }
@@ -73,6 +79,7 @@ interface SearchResult {
 
 export function usePullRequests(filter: PRFilter = 'review-requested') {
   const searchQuery = buildSearchQuery(filter);
+  const viewerLogin = useAuthStore((state) => state.user?.login);
 
   return useInfiniteQuery<SearchResult>({
     queryKey: ['pulls', filter],
@@ -83,6 +90,10 @@ export function usePullRequests(filter: PRFilter = 'review-requested') {
         first: 20,
         after: (pageParam as string) ?? null,
       });
+      result.search.nodes = result.search.nodes.map((node) => ({
+        ...node,
+        capabilities: derivePRCapabilities(node, viewerLogin),
+      })) as SearchResult['nodes'];
       return result.search;
     },
     initialPageParam: null as string | null,

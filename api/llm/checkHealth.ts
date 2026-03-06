@@ -23,11 +23,14 @@ const healthSchema = z.object({
 });
 
 const HEALTH_PROMPT = `You are validating structured output for a mobile code review segmentation workflow.
-Return exactly one segment that references the provided hunk.
+Return exactly one semantic review step that references the provided hunk.
+The step should read like a focused review segment, not a file slice.
+Use an action-oriented title, a behavior summary, and a rationale that explains grouping and order.
 Do not invent fields.
 
 Input:
 - prTitle: Health Check
+- prBody: Validate native structured outputs for segmentation
 - filePath: src/example.ts
 - hunkKey: src/example.ts::0
 - header: @@ -1,1 +1,2 @@

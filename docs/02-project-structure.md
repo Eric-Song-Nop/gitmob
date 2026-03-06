@@ -2,9 +2,9 @@
 
 ## 目标
 
-目录文档只反映当前仓库的真实结构，以及当前已经落地的产品主路径。
+本目录文档只反映当前仓库的真实结构，以及当前已经落地的产品主路径。
 
-当前主流程已经收敛为：
+当前主流程是：
 
 - `login`
 - `review`
@@ -77,9 +77,9 @@ Expo Router 页面和布局。
 
 说明：
 
-- 不再保留 `usePRFiles.ts`
-- 首页统一走 `usePRInbox.ts`，不再由页面自己拼多来源逻辑
-- Moonshot 配置和 health check 都从 `llm/providers.ts` 的统一 metadata 获取真实 baseURL/region
+- 首页统一走 `usePRInbox.ts`
+- 页面层不再自行拼多来源逻辑
+- Moonshot 配置和 health check 都从 `llm/providers.ts` 的 metadata 获取真实 baseURL/region
 
 ### `components/`
 
@@ -102,7 +102,6 @@ Expo Router 页面和布局。
 - `SegmentReviewCard.tsx`
 - `CardFrontSummary.tsx`
 - `CardBackDiff.tsx`
-- `ActionDock.tsx`
 - `CommentOverlay.tsx`
 - `SubmitReviewOverlay.tsx`
 - `ProgressPill.tsx`
@@ -153,13 +152,11 @@ Expo Router 页面和布局。
 
 ### `modules/`
 
-原生扩展实验区。
-
-当前不属于主路径，tree-sitter 相关设计仍属于后续探索，不影响当前 review 流。
+原生扩展预留目录。
 
 ## 推荐理解方式
 
-当前仓库应按下面这条产品链路来理解，而不是旧的 GitHub 页面镜像结构：
+当前仓库应该按这条产品链路理解，而不是按旧 GitHub 页面镜像结构理解：
 
 ```text
 login -> review (PR inbox deck) -> segment review deck -> submit overlay -> settings
